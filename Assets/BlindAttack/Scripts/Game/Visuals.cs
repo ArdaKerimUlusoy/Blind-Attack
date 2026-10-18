@@ -129,6 +129,7 @@ namespace BlindAttack.Game
             // ayak altı halka (kahramanı kalabalıkta bulmak kolay olsun)
             var ring = Gen.MeshObj(root.transform, "Halka", MeshGen.Disc(20), Art.Transparent(new Color(0.3f, 0.6f, 1f, 0.45f)), new Vector3(0, 0.02f, 0), new Vector3(0.85f, 1, 0.85f));
             ring.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            ring.AddComponent<DiscPulse>();
 
             var anim = root.AddComponent<UnitAnim>();
             anim.Init(body, weapon);
@@ -224,6 +225,7 @@ namespace BlindAttack.Game
             var t = root.transform;
             var glow = Gen.MeshObj(t, "Işıltı", MeshGen.Disc(20), Art.Transparent(new Color(band.r, band.g, band.b, 0.35f)), new Vector3(0, 0.02f, 0), new Vector3(0.9f, 1, 0.9f));
             glow.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            glow.AddComponent<DiscPulse>();
             var box = Pivot(t, "Kutu", Vector3.zero);
             var wood = Art.Lit(Art.WoodLight, Art.WoodTex);
             var frame = Art.Lit(Art.Wood, Art.BarkTex);
@@ -260,8 +262,9 @@ namespace BlindAttack.Game
             var root = new GameObject("İksir");
             var t = root.transform;
             var c = IconColor(ItemType.Potion);
-            Gen.MeshObj(t, "Işıltı", MeshGen.Disc(20), Art.Transparent(new Color(c.r, c.g, c.b, 0.35f)), new Vector3(0, 0.02f, 0), new Vector3(0.8f, 1, 0.8f))
-                .GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            var glow = Gen.MeshObj(t, "Işıltı", MeshGen.Disc(20), Art.Transparent(new Color(c.r, c.g, c.b, 0.35f)), new Vector3(0, 0.02f, 0), new Vector3(0.8f, 1, 0.8f));
+            glow.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            glow.AddComponent<DiscPulse>();
             var bottle = Pivot(t, "Şişe", Vector3.zero);
             Part(PrimitiveType.Sphere, bottle, new Vector3(0, 0.25f, 0), Vector3.one * 0.38f, Art.Glow(c, 0.9f));
             Part(PrimitiveType.Cylinder, bottle, new Vector3(0, 0.5f, 0), new Vector3(0.12f, 0.1f, 0.12f), Art.Lit(new Color(0.9f, 0.85f, 0.8f)));
@@ -286,6 +289,9 @@ namespace BlindAttack.Game
         {
             var root = new GameObject("Bayrak");
             var t = root.transform;
+            var glow = Gen.MeshObj(t, "Işıltı", MeshGen.Disc(20), Art.Transparent(new Color(0.2f, 0.8f, 0.85f, 0.35f)), new Vector3(0, 0.02f, 0), new Vector3(0.85f, 1, 0.85f));
+            glow.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            glow.AddComponent<DiscPulse>();
             Gen.MeshObj(t, "Taş", MeshGen.Rock(2), Art.Lit(Art.Stone, Art.StoneTex), new Vector3(0, 0.04f, 0), new Vector3(0.3f, 0.15f, 0.3f));
             Part(PrimitiveType.Cylinder, t, new Vector3(0, 0.5f, 0), new Vector3(0.04f, 0.5f, 0.04f), Art.Lit(Art.Wood));
             var cloth = Pivot(t, "Kumaş", new Vector3(0, 0.85f, 0));
@@ -311,16 +317,41 @@ namespace BlindAttack.Game
         }
     }
 
+    /// <summary>Zemindeki sihirli halkaların hafif nabız atması.</summary>
+    public class DiscPulse : MonoBehaviour
+    {
+        Vector3 baseScale;
+        float phase;
+        void Start()
+        {
+            baseScale = transform.localScale;
+            phase = (transform.position.x * 2.1f + transform.position.z * 1.9f) % (Mathf.PI * 2f);
+        }
+        void Update()
+        {
+            float p = Mathf.Sin(Time.time * 2.2f + phase) * 0.06f;
+            transform.localScale = new Vector3(baseScale.x * (1f + p), baseScale.y, baseScale.z * (1f + p));
+        }
+    }
+
     /// <summary>Hafif yukarı-aşağı süzülme ve dönme.</summary>
     public class Bobber : MonoBehaviour
     {
         float phase;
-        Vector3 basePos;
-        void Start() { basePos = transform.localPosition; phase = transform.position.x * 1.7f + transform.position.z * 2.3f; }
+        Vector3 basePos, baseScale;
+        void Start()
+        {
+            basePos = transform.localPosition;
+            baseScale = transform.localScale;
+            phase = (transform.position.x * 1.7f + transform.position.z * 2.3f) % (Mathf.PI * 2f);
+        }
         void Update()
         {
-            transform.localPosition = basePos + Vector3.up * (Mathf.Sin(Time.time * 2.2f + phase) * 0.05f + 0.05f);
-            transform.Rotate(0, 35f * Time.deltaTime, 0, Space.World);
+            float t = Time.time * 2.5f + phase;
+            transform.localPosition = basePos + Vector3.up * (Mathf.Sin(t) * 0.06f + 0.05f);
+            float scalePulse = 1f + Mathf.Sin(t * 1.5f) * 0.035f;
+            transform.localScale = new Vector3(baseScale.x * scalePulse, baseScale.y, baseScale.z * scalePulse);
+            transform.Rotate(0, 40f * Time.deltaTime, 0, Space.World);
         }
     }
 
@@ -330,13 +361,14 @@ namespace BlindAttack.Game
         void Update() => transform.localRotation = Quaternion.Euler(0, Mathf.Sin(Time.time * 4f + transform.position.x) * 20f, 0);
     }
 
-    /// <summary>Basit prosedürel animasyon: yürüme sallanması, vuruş, hasar alma, ölüm.</summary>
+    /// <summary>Basit prosedürel animasyon: nefes alma, yürüme sallanması, vuruş, hasar alma, ölüm.</summary>
     public class UnitAnim : MonoBehaviour
     {
         Transform body, weapon;
         Quaternion weaponRest;
         Vector3 bodyBase;
         float attackT = 1f, hurtT = 1f, walkPhase, deadT = -1f;
+        float idlePhase;
         public bool Moving;
         public float SpeedMul = 1f;
 
@@ -345,6 +377,7 @@ namespace BlindAttack.Game
             this.body = body; this.weapon = weapon;
             weaponRest = weapon ? weapon.localRotation : Quaternion.identity;
             bodyBase = body.localPosition;
+            idlePhase = UnityEngine.Random.Range(0f, Mathf.PI * 2f);
         }
 
         public void Attack() => attackT = 0f;
@@ -366,13 +399,15 @@ namespace BlindAttack.Game
                 return;
             }
             if (Moving) walkPhase += dt * 14f * SpeedMul;
-            float bob = Moving ? Mathf.Abs(Mathf.Sin(walkPhase)) * 0.08f : 0f;
-            float tilt = Moving ? Mathf.Sin(walkPhase) * 6f : 0f;
+            float bob = Moving ? Mathf.Abs(Mathf.Sin(walkPhase)) * 0.08f : Mathf.Sin(Time.time * 2.4f + idlePhase) * 0.016f;
+            float tilt = Moving ? Mathf.Sin(walkPhase) * 6f : Mathf.Sin(Time.time * 1.2f + idlePhase) * 1.6f;
             hurtT += dt;
             float squash = hurtT < 0.2f ? 1f - Mathf.Sin(hurtT / 0.2f * Mathf.PI) * 0.2f : 1f;
+            float breath = Moving ? 1f : 1f + Mathf.Sin(Time.time * 2.4f + idlePhase) * 0.018f;
+
             body.localPosition = bodyBase + new Vector3(0, bob, 0);
             body.localRotation = Quaternion.Euler(Moving ? 6f : 0f, 0, tilt);
-            body.localScale = new Vector3(2f - squash, squash, 2f - squash);
+            body.localScale = new Vector3((2f - squash) * breath, squash * (2f - breath), (2f - squash) * breath);
 
             if (weapon)
             {

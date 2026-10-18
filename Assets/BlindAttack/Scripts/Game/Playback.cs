@@ -34,10 +34,13 @@ namespace BlindAttack.Game
         Vector3 lastHeroPos;
         int heroFaceEnemy = -1; float heroFaceTimer;
 
+        float hitstopTimer;
+        float stepTimer;
+
         public void Play(SimResult result, MapView mapView, IsoCamera isoCam, bool viewerIsDefender)
         {
             res = result; view = mapView; cam = isoCam;
-            t = 0f; endDelay = 0f; eventIdx = 0; Speed = 1f;
+            t = 0f; endDelay = 0f; eventIdx = 0; Speed = 1f; hitstopTimer = 0f; stepTimer = 0f;
             enemies.Clear(); enemyAnims.Clear(); enemyBars.Clear(); supplies.Clear(); traps.Clear();
             var root = view.UnitsRoot;
 
@@ -99,6 +102,12 @@ namespace BlindAttack.Game
         void Update()
         {
             if (!Running || res == null) return;
+            if (hitstopTimer > 0f)
+            {
+                hitstopTimer -= Time.unscaledDeltaTime;
+                return;
+            }
+
             float dt = Time.deltaTime * Speed;
             t = Mathf.Min(t + dt, res.Duration);
 
@@ -121,6 +130,16 @@ namespace BlindAttack.Game
             var delta = hero.transform.position - lastHeroPos;
             bool moving = delta.magnitude > 0.0005f;
             if (heroAnim) heroAnim.Moving = moving;
+            if (moving)
+            {
+                stepTimer -= dt;
+                if (stepTimer <= 0f)
+                {
+                    stepTimer = 0.28f / Mathf.Max(0.5f, heroRig != null ? heroRig.Speed : 1f);
+                    AudioManager.Play(SoundId.Step, 0.32f);
+                }
+            }
+
             heroFaceTimer -= dt;
             if (heroFaceTimer > 0f && heroFaceEnemy >= 0 && heroFaceEnemy < enemies.Count)
                 Face(hero.transform, enemies[heroFaceEnemy].transform.position - hero.transform.position, 20f);
@@ -170,20 +189,39 @@ namespace BlindAttack.Game
                     heroFaceEnemy = e.Index; heroFaceTimer = 0.5f;
                     if (e.Index < enemyAnims.Count && enemyAnims[e.Index]) enemyAnims[e.Index].Hurt();
                     Effects.FloatText(root, pos + Vector3.up * 1.3f, Mathf.RoundToInt(e.Amount).ToString(), new Color(1f, 0.95f, 0.6f));
-                    Effects.Burst(root, pos + Vector3.up * 0.5f, new Color(1f, 0.9f, 0.5f), 4, 2.5f, 0.07f);
+                    Effects.Burst(root, pos + Vector3.up * 0.5f, new Color(1f, 0.9f, 0.5f), 5, 2.8f, 0.07f);
+                    AudioManager.Play(SoundId.SwordSlash, 0.85f);
+                    AudioManager.Play(SoundId.Impact, 0.75f);
+                    hitstopTimer = 0.045f;
+                    cam.Shake(0.22f);
                     break;
                 case SimEventType.EnemyAttack:
                     if (e.Index < enemyAnims.Count && enemyAnims[e.Index]) enemyAnims[e.Index].Attack();
                     if (heroRig) heroRig.Blocked();
                     if (res.Enemies[e.Index].Type == ItemType.Archer)
+                    {
                         Effects.Arrow(root, pos + Vector3.up * 0.7f, hero.transform.position + Vector3.up * 0.6f);
+                        AudioManager.Play(SoundId.ArrowShoot, 0.85f);
+                    }
+                    else if (heroRig && heroRig.Armor > 0.01f)
+                    {
+                        AudioManager.Play(SoundId.ShieldBlock, 0.85f);
+                    }
+                    else
+                    {
+                        AudioManager.Play(SoundId.Impact, 0.85f);
+                    }
                     heroAnim?.Hurt();
                     Effects.FloatText(root, hero.transform.position + Vector3.up * 1.6f, "-" + Mathf.RoundToInt(e.Amount), new Color(1f, 0.35f, 0.3f));
+                    hitstopTimer = 0.04f;
+                    cam.Shake(0.32f);
                     break;
                 case SimEventType.EnemyDied:
                     if (e.Index < enemyAnims.Count && enemyAnims[e.Index]) enemyAnims[e.Index].Die();
                     if (e.Index < enemyBars.Count) enemyBars[e.Index].gameObject.SetActive(false);
-                    Effects.Burst(root, pos + Vector3.up * 0.4f, Visuals.IconColor(res.Enemies[e.Index].Type), 10, 3.5f);
+                    Effects.Burst(root, pos + Vector3.up * 0.4f, Visuals.IconColor(res.Enemies[e.Index].Type), 12, 3.8f);
+                    AudioManager.Play(SoundId.EnemyDie, 0.9f);
+                    cam.Shake(0.25f);
                     break;
                 case SimEventType.Pickup:
                 {
@@ -191,10 +229,10 @@ namespace BlindAttack.Game
                     var col = Visuals.IconColor(s.Type);
                     if (s.Type == ItemType.Flag)
                     {
-                        // bayrağa ulaşıldı: bayrak yere yatar
                         supplies[e.Index].transform.localRotation = Quaternion.Euler(0, 0, 70);
                         Effects.Ring(root, pos, new Color(col.r, col.g, col.b, 0.6f), 0.9f);
                         LastInfo = "Bayrağa ulaştı";
+                        AudioManager.Play(SoundId.UiCopy, 0.85f);
                         break;
                     }
                     supplies[e.Index].SetActive(false);
@@ -204,12 +242,30 @@ namespace BlindAttack.Game
                     string txt;
                     switch (s.Type)
                     {
-                        case ItemType.SwordCrate: txt = "+6 SALDIRI"; LastInfo = "Kılıç alev aldı!"; break;
-                        case ItemType.ArmorCrate: txt = $"ZIRH  %{e.Armor * 100f:0}"; LastInfo = "Zırh giydi!"; break;
-                        case ItemType.Potion: txt = "+45 CAN"; LastInfo = "İksir içti"; Effects.Burst(root, hero.transform.position + Vector3.up * 0.6f, new Color(0.4f, 1f, 0.5f), 16, 2f, 0.07f); break;
-                        case ItemType.SpeedBoots: txt = $"HIZ x{e.Speed:0.0#}"; LastInfo = "Hız çizmesi giydi!"; break;
-                        case ItemType.Bomb: txt = "BUM!"; LastInfo = "Bomba patladı!"; break;
-                        default: txt = Items.Get(s.Type).Name; break;
+                        case ItemType.SwordCrate:
+                            txt = "+6 SALDIRI"; LastInfo = "Kılıç alev aldı!";
+                            AudioManager.Play(SoundId.PlaceCrate, 0.9f);
+                            break;
+                        case ItemType.ArmorCrate:
+                            txt = $"ZIRH  %{e.Armor * 100f:0}"; LastInfo = "Zırh giydi!";
+                            AudioManager.Play(SoundId.PlaceCrate, 0.9f);
+                            break;
+                        case ItemType.Potion:
+                            txt = "+45 CAN"; LastInfo = "İksir içti";
+                            Effects.Burst(root, hero.transform.position + Vector3.up * 0.6f, new Color(0.4f, 1f, 0.5f), 16, 2f, 0.07f);
+                            AudioManager.Play(SoundId.PotionDrink, 0.95f);
+                            break;
+                        case ItemType.SpeedBoots:
+                            txt = $"HIZ x{e.Speed:0.0#}"; LastInfo = "Hız çizmesi giydi!";
+                            AudioManager.Play(SoundId.PlaceCrate, 0.9f);
+                            break;
+                        case ItemType.Bomb:
+                            txt = "BUM!"; LastInfo = "Bomba patladı!";
+                            break;
+                        default:
+                            txt = Items.Get(s.Type).Name;
+                            AudioManager.Play(SoundId.PlaceCrate, 0.9f);
+                            break;
                     }
                     Effects.FloatText(root, hero.transform.position + Vector3.up * 1.9f, txt, col, 1.1f);
                     break;
@@ -218,25 +274,31 @@ namespace BlindAttack.Game
                     Effects.Burst(root, pos + Vector3.up * 0.3f, new Color(1f, 0.55f, 0.15f), 26, 6f, 0.14f);
                     Effects.Burst(root, pos + Vector3.up * 0.3f, new Color(0.3f, 0.3f, 0.3f), 14, 3f, 0.18f);
                     Effects.Ring(root, pos, new Color(1f, 0.6f, 0.2f, 0.8f), 2.5f);
-                    cam.Shake(1f);
+                    AudioManager.Play(SoundId.BombExplode, 1.0f);
+                    hitstopTimer = 0.07f;
+                    cam.Shake(1.1f);
                     break;
                 case SimEventType.TrapTriggered:
                     traps[e.Index].transform.localScale = Vector3.one;
                     heroAnim?.Hurt();
                     Effects.Burst(root, pos + Vector3.up * 0.2f, new Color(0.8f, 0.8f, 0.85f), 8, 3f, 0.07f);
                     Effects.FloatText(root, pos + Vector3.up * 1.6f, "TUZAK! -" + Mathf.RoundToInt(e.Amount), new Color(1f, 0.3f, 0.25f));
-                    cam.Shake(0.4f);
+                    AudioManager.Play(SoundId.TrapSnap, 0.95f);
+                    hitstopTimer = 0.05f;
+                    cam.Shake(0.45f);
                     LastInfo = "Gizli tuzağa bastı!";
                     break;
                 case SimEventType.HeroDied:
                     heroAnim?.Die();
                     Effects.Burst(root, pos + Vector3.up * 0.5f, new Color(0.3f, 0.5f, 0.95f), 18, 4f);
+                    AudioManager.Play(SoundId.HeroDie, 0.95f);
                     LastInfo = "Kahraman düştü!";
                     cam.Shake(0.6f);
                     break;
                 case SimEventType.ReachedExit:
                     Effects.Burst(root, pos + Vector3.up * 0.8f, new Color(0.6f, 0.95f, 1f), 30, 5f, 0.1f);
                     Effects.Ring(root, pos, new Color(0.6f, 0.95f, 1f, 0.8f), 2f);
+                    AudioManager.Play(SoundId.VictoryFanfare, 1.0f);
                     hero.SetActive(false);
                     LastInfo = "Çıkışa ulaştı!";
                     break;

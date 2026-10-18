@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using BlindAttack.Core;
+using PrimeTween;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -19,6 +20,9 @@ namespace BlindAttack.Game
 
         GameObject menu, waiting, hud, palettePanel, playbackPanel, roundPanel, matchPanel, overlay;
         GameObject pauseRoot, pauseBox, helpBox, pauseMenuButton;
+        GameObject territoryBanner;
+        Text bannerTitle, bannerSub;
+        CanvasGroup bannerGroup, vignetteGroup, menuGroup;
         Text pauseNote, fullscreenLabel, rematchNote;
         Button rematchButton;
         InputField nameInput, codeInput, ipInput;
@@ -30,6 +34,8 @@ namespace BlindAttack.Game
         Transform paletteRow;
         readonly List<RectTransform> topPanels = new List<RectTransform>();
         readonly List<(ItemType type, Image bg)> paletteButtons = new List<(ItemType, Image)>();
+        int lastTimerSec = -1;
+        int lastBudgetRemaining = -1;
 
         public string PlayerName => string.IsNullOrWhiteSpace(nameInput.text) ? "Oyuncu" : nameInput.text.Trim();
 
@@ -37,12 +43,54 @@ namespace BlindAttack.Game
         {
             UiKit.Init();
             var root = UiKit.Canvas.transform;
+            BuildVignette(root);
             BuildMenu(root);
             BuildWaiting(root);
             BuildHud(root);
+            BuildTerritoryBanner(root);
             BuildResults(root);
             BuildPause(root);
             ShowMenu("");
+        }
+
+        void BuildVignette(Transform root)
+        {
+            var go = new GameObject("TerritoryVignette");
+            var rt = UiKit.Rect(go, root);
+            UiKit.Stretch(rt);
+            var img = go.AddComponent<Image>();
+            const int sz = 32;
+            var px = new Color[sz * sz];
+            for (int y = 0; y < sz; y++)
+                for (int x = 0; x < sz; x++)
+                {
+                    float u = (x / (float)(sz - 1)) * 2f - 1f;
+                    float v = (y / (float)(sz - 1)) * 2f - 1f;
+                    float d = Mathf.Clamp01(Mathf.Sqrt(u * u + v * v));
+                    float a = Mathf.SmoothStep(0f, 0.85f, Mathf.InverseLerp(0.5f, 1.15f, d));
+                    px[y * sz + x] = new Color(0.78f, 0.32f, 0.16f, a);
+                }
+            var tex = Art.MakeTex(px, sz, sz, TextureWrapMode.Clamp);
+            img.sprite = Sprite.Create(tex, new Rect(0, 0, sz, sz), new Vector2(0.5f, 0.5f));
+            img.raycastTarget = false;
+            vignetteGroup = go.AddComponent<CanvasGroup>();
+            vignetteGroup.alpha = 0f;
+            vignetteGroup.blocksRaycasts = false;
+        }
+
+        void BuildTerritoryBanner(Transform root)
+        {
+            territoryBanner = UiKit.Box(root, new Vector2(0.5f, 0.68f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(880, 130), UiKit.Parchment);
+            territoryBanner.name = "TerritoryBanner";
+            bannerGroup = territoryBanner.AddComponent<CanvasGroup>();
+            bannerGroup.alpha = 0f;
+            bannerGroup.blocksRaycasts = false;
+            UiKit.VStack(territoryBanner, 6, 14);
+            bannerTitle = UiKit.Title(territoryBanner.transform, "", 48, UiKit.WoodBtn);
+            UiKit.Size(bannerTitle, 840, 56);
+            bannerSub = UiKit.Label(territoryBanner.transform, "", 24, UiKit.Ink, TextAnchor.MiddleCenter);
+            UiKit.Size(bannerSub, 840, 36);
+            territoryBanner.SetActive(false);
         }
 
         // ================= MENÜ =================
@@ -50,12 +98,18 @@ namespace BlindAttack.Game
         {
             menu = new GameObject("Menu");
             UiKit.Stretch(UiKit.Rect(menu, root));
+            menuGroup = menu.AddComponent<CanvasGroup>();
 
             var title = UiKit.Title(menu.transform, "BLIND ATTACK", 110, UiKit.Gold);
             var trt = title.rectTransform;
             trt.anchorMin = trt.anchorMax = new Vector2(0.5f, 1f); trt.pivot = new Vector2(0.5f, 1f);
             trt.anchoredPosition = new Vector2(0, -60); trt.sizeDelta = new Vector2(1200, 140);
             title.GetComponent<Shadow>().effectDistance = new Vector2(4, -6);
+            Tween.Custom(0f, 1f, 2.5f, k =>
+            {
+                if (trt) trt.anchoredPosition = new Vector2(0, -60f + Mathf.Sin(k * Mathf.PI * 2f) * 6f);
+            }, cycles: -1, cycleMode: CycleMode.Restart);
+
             var sub = UiKit.Title(menu.transform, "Görmeden kur, körlemesine saldır!", 36, Color.white);
             var srt = sub.rectTransform;
             srt.anchorMin = srt.anchorMax = new Vector2(0.5f, 1f); srt.pivot = new Vector2(0.5f, 1f);
@@ -314,7 +368,13 @@ namespace BlindAttack.Game
         public void ShowMenu(string status)
         {
             HideAll();
+            SetTerritory(false);
             menu.SetActive(true);
+            if (menuGroup)
+            {
+                menuGroup.alpha = 1f;
+                menu.transform.localScale = Vector3.one;
+            }
             menuStatus.text = status;
             menuStatus.color = UiKit.Red;
         }
@@ -343,9 +403,68 @@ namespace BlindAttack.Game
         }
 
         public void SetPhase(string title, string sub) { phaseTitle.text = title; phaseSub.text = sub; }
-        public void SetTimer(float seconds) => timerText.text = seconds < 0 ? "" : Mathf.CeilToInt(Mathf.Max(0, seconds)).ToString();
+
+        public void SetTimer(float seconds)
+        {
+            if (seconds < 0f)
+            {
+                timerText.text = "";
+                timerText.color = Color.white;
+                lastTimerSec = -1;
+                return;
+            }
+            int s = Mathf.CeilToInt(Mathf.Max(0, seconds));
+            timerText.text = s.ToString();
+            if (s <= 5 && s > 0 && s != lastTimerSec)
+            {
+                lastTimerSec = s;
+                timerText.color = UiKit.Red;
+                Tween.PunchScale(timerText.transform, new Vector3(0.35f, 0.35f, 0f), 0.25f);
+                AudioManager.Play(SoundId.UrgentTick, 0.9f);
+            }
+            else if (s > 5)
+            {
+                timerText.color = Color.white;
+                lastTimerSec = s;
+            }
+        }
+
         public void SetScore(string text) => scoreText.text = text;
         public void SetMapInfo(string text) => mapText.text = text;
+
+        public void ShowTerritoryBanner(string title, string sub, bool hostile)
+        {
+            if (territoryBanner == null) return;
+            territoryBanner.SetActive(true);
+            territoryBanner.transform.SetAsLastSibling();
+            var bgImg = territoryBanner.GetComponent<Image>();
+            if (bgImg) bgImg.color = hostile ? new Color(0.24f, 0.08f, 0.06f, 0.95f) : UiKit.Parchment;
+            bannerTitle.text = title;
+            bannerTitle.color = hostile ? new Color(1f, 0.40f, 0.35f) : UiKit.Gold;
+            bannerSub.text = sub;
+            bannerSub.color = hostile ? new Color(1f, 0.88f, 0.85f, 0.9f) : UiKit.Ink;
+
+            var rt = (RectTransform)territoryBanner.transform;
+            rt.localScale = Vector3.one * 0.7f;
+            Tween.StopAll(territoryBanner.transform);
+            Tween.StopAll(bannerGroup);
+            bannerGroup.alpha = 1f;
+            Tween.Scale(territoryBanner.transform, Vector3.one, 0.35f, Ease.OutBack);
+            AudioManager.Play(SoundId.BannerWhoosh, 0.8f);
+            AudioManager.Play(SoundId.BannerGong, 0.65f);
+
+            Tween.Delay(1.35f).OnComplete(() =>
+            {
+                if (bannerGroup) Tween.Alpha(bannerGroup, 0f, 0.32f, Ease.InQuad).OnComplete(() => territoryBanner.SetActive(false));
+            });
+        }
+
+        public void SetTerritory(bool hostile)
+        {
+            if (vignetteGroup == null) return;
+            Tween.StopAll(vignetteGroup);
+            Tween.Alpha(vignetteGroup, hostile ? 0.22f : 0f, 0.45f, Ease.OutQuad);
+        }
 
         public void SetOverlay(string text)
         {
@@ -361,8 +480,9 @@ namespace BlindAttack.Game
             foreach (Transform c in paletteRow) UnityEngine.Object.Destroy(c.gameObject);
             paletteButtons.Clear();
             int i = 0;
-            foreach (var t in pc.Palette)
+            for (int pIdx = 0; pIdx < pc.Palette.Length; pIdx++)
             {
+                var t = pc.Palette[pIdx];
                 var def = Items.Get(t);
                 var type = t;
                 int key = ++i;
@@ -386,6 +506,9 @@ namespace BlindAttack.Game
                 cost.rectTransform.anchorMin = Vector2.zero; cost.rectTransform.anchorMax = new Vector2(1, 0);
                 cost.rectTransform.pivot = new Vector2(0.5f, 0); cost.rectTransform.anchoredPosition = new Vector2(0, 8); cost.rectTransform.sizeDelta = new Vector2(0, 30);
                 paletteButtons.Add((t, b.GetComponent<Image>()));
+
+                b.transform.localScale = Vector3.zero;
+                Tween.Scale(b.transform, Vector3.one, 0.22f, Ease.OutBack, startDelay: pIdx * 0.04f);
             }
             RefreshPalette(pc, false);
         }
@@ -401,7 +524,13 @@ namespace BlindAttack.Game
                 o.effectDistance = sel ? new Vector2(5, -5) : new Vector2(2, -2);
                 bg.transform.localScale = sel ? Vector3.one * 1.04f : Vector3.one;
             }
-            goldText.text = $"Altın: {pc.Budget - pc.Spent} / {pc.Budget}";
+            int remaining = pc.Budget - pc.Spent;
+            if (lastBudgetRemaining >= 0 && remaining != lastBudgetRemaining)
+            {
+                Tween.PunchScale(goldText.transform, new Vector3(0.18f, 0.18f, 0f), 0.2f);
+            }
+            lastBudgetRemaining = remaining;
+            goldText.text = $"Altın: {remaining} / {pc.Budget}";
             readyButton.interactable = !ready;
             readyButton.GetComponentInChildren<Text>().text = ready ? "BEKLENİYOR" : "HAZIRIM";
         }
@@ -450,16 +579,21 @@ namespace BlindAttack.Game
 
         public void HidePlayback() => playbackPanel.SetActive(false);
 
-        public void ShowRound(string title, string body)
+        public void ShowRound(string title, string body, bool won = true)
         {
             roundPanel.SetActive(true);
+            roundPanel.transform.localScale = Vector3.one * 0.75f;
+            Tween.Scale(roundPanel.transform, Vector3.one, 0.32f, Ease.OutBack);
             roundTitle.text = title;
             roundBody.text = body;
+            AudioManager.Play(won ? SoundId.RoundWin : SoundId.RoundLoss);
         }
 
         public void HideRound() => roundPanel.SetActive(false);
 
-        public void ShowMatch(string title, Color color, bool canRematch, string body)
+        string matchBodyBase = "";
+
+        public void ShowMatch(string title, Color color, bool canRematch, string body, bool won = true)
         {
             rematchButton.gameObject.SetActive(canRematch);
             rematchNote.gameObject.SetActive(!canRematch);
@@ -468,9 +602,19 @@ namespace BlindAttack.Game
             playbackPanel.SetActive(false);
             SetOverlay(null);
             matchPanel.SetActive(true);
+            matchPanel.transform.localScale = Vector3.one * 0.75f;
+            Tween.Scale(matchPanel.transform, Vector3.one, 0.35f, Ease.OutBack);
             matchTitle.text = title;
             matchTitle.color = color;
+            matchBodyBase = body;
             matchBody.text = body;
+            AudioManager.Play(won ? SoundId.VictoryFanfare : SoundId.RoundLoss);
+        }
+
+        public void UpdateMatchCountdown(int secondsLeft)
+        {
+            if (matchBody != null && matchPanel != null && matchPanel.activeSelf)
+                matchBody.text = matchBodyBase + $"\n\n<size=22><color=#D4AF37><b>{secondsLeft}</b> saniye sonra menüye dönülüyor...</color></size>";
         }
     }
 }

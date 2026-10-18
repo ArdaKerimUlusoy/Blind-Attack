@@ -11,7 +11,9 @@ namespace BlindAttack.Core
         public const float DefensePhaseSeconds = 50f;
         public const float SupplyPhaseSeconds = 45f;
         /// <summary>Savunma birimleri çıkışa en az bu kadar adım uzakta olmalı (kapıyı tamamen kapatmasınlar).</summary>
-        public const int MinDefenseStepsFromExit = 2;
+        public const int MinDefenseStepsFromExit = 4;
+        /// <summary>Kutular (güçlendirmeler) kahramana en az bu kadar ızgara adımı uzakta olmalı (hemen başlangıçta kümelenmesinler).</summary>
+        public const int MinBuffDistanceToHero = 3;
         public const int MaxDefenders = 18;
         public const int MaxSupplies = 8;   // kutular (bayraklar hariç)
         public const int MaxFlags = 3;
@@ -32,8 +34,31 @@ namespace BlindAttack.Core
             if (type == ItemType.Hero)
             {
                 if (!map.CanSpawnHero(cell)) return "Kahraman sadece mavi başlangıç bölgesine konabilir";
+                foreach (var p in existing)
+                {
+                    if (p.Type != ItemType.Hero && !Items.Get(p.Type).IsDefense)
+                    {
+                        if (System.Math.Abs(cell.X - p.Cell.X) + System.Math.Abs(cell.Y - p.Cell.Y) < MinBuffDistanceToHero)
+                            return "Kutulara çok yakın";
+                    }
+                }
             }
-            else if (def.IsDefense && map.StepsToExit(cell) < MinDefenseStepsFromExit) return "Çıkışa çok yakın";
+            else if (def.IsDefense)
+            {
+                if (map.StepsToExit(cell) < MinDefenseStepsFromExit) return "Çıkışa çok yakın";
+                if (cell == map.Start) return "Başlangıca konamaz";
+            }
+            else if (type != ItemType.Hero)
+            {
+                Cell? heroCell = null;
+                foreach (var p in existing)
+                {
+                    if (p.Type == ItemType.Hero) { heroCell = p.Cell; break; }
+                }
+                var h = heroCell ?? DefaultHeroCell(map);
+                if (System.Math.Abs(cell.X - h.X) + System.Math.Abs(cell.Y - h.Y) < MinBuffDistanceToHero)
+                    return "Kahramana çok yakın";
+            }
 
             int spent = 0, crates = 0, flags = 0, defenders = 0;
             foreach (var p in existing)
@@ -70,6 +95,20 @@ namespace BlindAttack.Core
         public static List<Placement> Sanitize(GridMap map, IList<Placement> input, bool defense)
         {
             var result = new List<Placement>();
+            if (!defense)
+            {
+                for (int i = 0; i < input.Count; i++)
+                {
+                    if (input[i].Type == ItemType.Hero)
+                    {
+                        if (CheckPlacement(map, result, input[i].Type, input[i].Cell) == null)
+                            result.Add(input[i]);
+                        break;
+                    }
+                }
+                if (!HasHero(result)) result.Insert(0, new Placement(ItemType.Hero, DefaultHeroCell(map)));
+            }
+
             foreach (var p in input)
             {
                 if (Items.Get(p.Type).IsDefense != defense) continue;

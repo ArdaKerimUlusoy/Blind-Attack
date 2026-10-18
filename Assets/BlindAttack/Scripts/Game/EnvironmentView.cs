@@ -16,11 +16,14 @@ namespace BlindAttack.Game
         [Range(60, 200)] public float worldSize = 140f;
         public int seed = 7;
 
-        public static readonly Color FarGround = new Color(0.40f, 0.58f, 0.30f);
+        public static readonly Color FarGroundFriendly = new Color(0.40f, 0.58f, 0.30f);
+        public static readonly Color FarGroundHostile = new Color(0.68f, 0.40f, 0.24f);
+        public static Color FarGround => CurrentHostile ? FarGroundHostile : FarGroundFriendly;
+        public static bool CurrentHostile { get; private set; }
 
         Transform generated;
 
-        void OnEnable() => Build();
+        void OnEnable() => Build(false);
 
         void OnDisable()
         {
@@ -32,12 +35,13 @@ namespace BlindAttack.Game
         void OnValidate()
         {
             if (Application.isPlaying) return;
-            UnityEditor.EditorApplication.delayCall += () => { if (this != null && isActiveAndEnabled) Build(); };
+            UnityEditor.EditorApplication.delayCall += () => { if (this != null && isActiveAndEnabled) Build(false); };
         }
 #endif
 
-        public void Build()
+        public void Build(bool hostile = false)
         {
+            CurrentHostile = hostile;
             if (generated) Gen.Kill(generated.gameObject);
             generated = Gen.Group(transform, "Manzara");
             var rng = new System.Random(seed);
@@ -45,7 +49,10 @@ namespace BlindAttack.Game
             var center = new Vector3(playArea.x / 2f, 0, playArea.y / 2f);
 
             // ---- zemin ----
-            var tex = Art.Painted(256, new Color(0.46f, 0.64f, 0.32f), new Color(0.34f, 0.52f, 0.25f), new Color(0.62f, 0.76f, 0.38f), seed + 3, 900, 9f);
+            var c1 = hostile ? new Color(0.70f, 0.42f, 0.24f) : new Color(0.46f, 0.64f, 0.32f);
+            var c2 = hostile ? new Color(0.58f, 0.30f, 0.18f) : new Color(0.34f, 0.52f, 0.25f);
+            var c3 = hostile ? new Color(0.84f, 0.54f, 0.28f) : new Color(0.62f, 0.76f, 0.38f);
+            var tex = Art.Painted(256, c1, c2, c3, seed + 3, 900, 9f);
             var groundMat = new Material(Art.Lit(Color.white)) { hideFlags = HideFlags.DontSave };
             groundMat.SetTexture("_BaseMap", tex); groundMat.mainTexture = tex;
             groundMat.SetTextureScale("_BaseMap", Vector2.one * (worldSize / 12f));
@@ -112,7 +119,7 @@ namespace BlindAttack.Game
                 float density = d < 6f ? 0.9f : d < 14f ? 0.55f : 0.25f;
                 float clearing = Noise.Value(p.x * 0.12f, p.z * 0.12f, seed);
                 if (R() > density * (clearing > 0.35f ? 1f : 0.25f)) continue;
-                MapView.Tree(forest, p, R(), R() < 0.55f ? 0.1f : 0.8f, R(), 0.9f + R() * 0.7f + Mathf.Min(d, 20f) * 0.02f);
+                MapView.Tree(forest, p, R(), R() < 0.55f ? 0.1f : 0.8f, R(), 0.9f + R() * 0.7f + Mathf.Min(d, 20f) * 0.02f, hostile);
                 trees++;
             }
 
@@ -125,7 +132,8 @@ namespace BlindAttack.Game
                 var p = center + new Vector3(Mathf.Cos(a) * dist, 0, Mathf.Sin(a) * dist * 0.85f);
                 if (InLake(p)) continue;
                 float s = 10f + R() * 10f;
-                Gen.MeshObj(hills, "Tepe", MeshGen.Blob(i % 6), Art.Lit(Art.Vary(new Color(0.42f, 0.62f, 0.32f), R(), 0.15f)), p, new Vector3(s, s * (0.35f + R() * 0.25f), s * 0.9f));
+                var hillCol = hostile ? new Color(0.68f, 0.40f, 0.26f) : new Color(0.42f, 0.62f, 0.32f);
+                Gen.MeshObj(hills, "Tepe", MeshGen.Blob(i % 6), Art.Lit(Art.Vary(hillCol, R(), 0.15f)), p, new Vector3(s, s * (0.35f + R() * 0.25f), s * 0.9f));
             }
 
             // ---- kayalar, çiçekler ----

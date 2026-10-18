@@ -5,35 +5,55 @@ using UnityEngine.InputSystem;
 namespace BlindAttack.Game
 {
     /// <summary>
-    /// Haritayı, arayüz panellerinin ARASINDA kalan boşluğa sığdıran izometrik (ortografik) kamera.
-    /// Fare tekerleği: yakınlaş. WASD / ok tuşları / orta tuşla sürükle: kaydır. Space: ortala.
+    /// Tabletop Simulator tarzı serbest izometrik ve perspektif kamera.
+    /// Sağ tık sürükle: serbest açı döndürme (Yaw & Pitch).
+    /// Q & E: masa etrafında yatay döndürme.
+    /// WASD / ok tuşları / orta tık sürükle: serbest zemin kaydırma (Pan).
+    /// Fare tekerleği: derin yakınlaşma ve geniş uzaklaşma (Zoom).
+    /// Space: masa merkezine ve varsayılan açıya sıfırlama.
     /// </summary>
     [ExecuteAlways]
     [RequireComponent(typeof(Camera))]
     public class IsoCamera : MonoBehaviour
     {
-        [Range(20f, 70f)] public float pitch = 36f;
-        [Range(0f, 90f)] public float yaw = 45f;
+        [Header("Açı ve Döndürme")]
+        [Range(15f, 85f)] public float pitch = 38f;
+        public float yaw = 45f;
+
+        [Header("Tabletop Kontrolleri")]
+        public float rotateSpeed = 0.22f;
+        public float keyRotateSpeed = 95f;
+        public float minPitch = 16f;
+        public float maxPitch = 82f;
+        public float minZoom = 0.18f;
+        public float maxZoom = 2.40f;
 
         /// <summary>Ekranın üstünde ve altında arayüzün kapladığı piksel yükseklikleri (üst, alt).</summary>
         public Func<Vector2> UiInsets;
 
         Camera cam;
         Bounds target = new Bounds(new Vector3(15, 0.5f, 10), new Vector3(30, 1, 20));
-        float zoom = 1f, shake;
+        float zoom = 1f, targetZoom = 1f;
+        float targetYaw = 45f, targetPitch = 38f;
+        float shake;
         Vector3 pan, followOffset;
         Transform follow;
         float followWeight;
         Vector2 lastMouse;
+        bool isDraggingRmb;
 
         public Camera Cam => cam ? cam : (cam = GetComponent<Camera>());
-        Quaternion Rotation => Quaternion.Euler(pitch, yaw, 0f);
+        public Quaternion Rotation => Quaternion.Euler(pitch, yaw, 0f);
 
         void OnEnable()
         {
-            if (!Cam.orthographic) Cam.orthographic = true;
+            if (Cam.orthographic) Cam.orthographic = false;
+            Cam.fieldOfView = 34f;
             if (Cam.nearClipPlane != 0.1f) Cam.nearClipPlane = 0.1f;
-            if (Cam.farClipPlane != 300f) Cam.farClipPlane = 300f;
+            if (Cam.farClipPlane != 350f) Cam.farClipPlane = 350f;
+            targetYaw = yaw;
+            targetPitch = pitch;
+            targetZoom = zoom;
             if (!Application.isPlaying)
             {
                 var map = FindAnyObjectByType<MapView>();
@@ -46,6 +66,7 @@ namespace BlindAttack.Game
         {
             target = b;
             zoom = 1f;
+            targetZoom = 1f;
             pan = Vector3.zero;
             followOffset = Vector3.zero;
             follow = null;
@@ -56,11 +77,13 @@ namespace BlindAttack.Game
         public void Follow(Transform t, float weight, float autoZoom = 1f)
         {
             follow = t; followWeight = weight;
-            zoom = t != null ? autoZoom : 1f;
+            if (t != null) targetZoom = autoZoom;
             pan = Vector3.zero;
         }
 
         public void Shake(float amount) => shake = Mathf.Max(shake, amount);
+        public bool MenuMode = true;
+        float menuTime;
 
         void LateUpdate()
         {
@@ -71,41 +94,99 @@ namespace BlindAttack.Game
 
         void HandleInput()
         {
+            if (MenuMode)
+            {
+                menuTime += Time.unscaledDeltaTime * 0.25f;
+                pan = new Vector3(Mathf.Sin(menuTime) * 1.6f, 0, Mathf.Cos(menuTime * 0.7f) * 1.1f);
+                targetZoom = 1.04f;
+                zoom = Mathf.Lerp(zoom, targetZoom, Time.unscaledDeltaTime * 6f);
+                yaw = Mathf.LerpAngle(yaw, 45f + Mathf.Sin(menuTime * 0.5f) * 8f, Time.unscaledDeltaTime * 4f);
+                pitch = Mathf.Lerp(pitch, 38f, Time.unscaledDeltaTime * 4f);
+                return;
+            }
+
             var mouse = Mouse.current;
             var kb = Keyboard.current;
             float dt = Time.unscaledDeltaTime;
-            var right = Rotation * Vector3.right; right.y = 0; right.Normalize();
-            var fwd = Rotation * Vector3.forward; fwd.y = 0; fwd.Normalize();
+
+            var rot = Rotation;
+            var right = rot * Vector3.right; right.y = 0; right.Normalize();
+            var fwd = rot * Vector3.forward; fwd.y = 0; fwd.Normalize();
 
             if (mouse != null)
             {
+                // Zoom (fare tekerleği)
                 float scroll = mouse.scroll.ReadValue().y;
                 if (Mathf.Abs(scroll) > 0.01f && !UiKit.PointerOverUi())
-                    zoom = Mathf.Clamp(zoom * (scroll > 0 ? 0.88f : 1.12f), 0.35f, 1.25f);
+                {
+                    float factor = scroll > 0 ? 0.82f : 1.20f;
+                    targetZoom = Mathf.Clamp(targetZoom * factor, minZoom, maxZoom);
+                }
 
                 var mp = mouse.position.ReadValue();
+                if (mouse.rightButton.wasPressedThisFrame || mouse.middleButton.wasPressedThisFrame)
+                    lastMouse = mp;
+                var delta = mp - lastMouse;
+
+                // Sağ tıkla basıp sürükleme: Tabletop Simulator tarzı serbest kamera döndürme (Yaw & Pitch)
+                if (mouse.rightButton.isPressed)
+                {
+                    if (mouse.rightButton.wasPressedThisFrame) isDraggingRmb = true;
+                    if (isDraggingRmb && delta.sqrMagnitude > 0.001f)
+                    {
+                        targetYaw += delta.x * rotateSpeed;
+                        targetPitch -= delta.y * rotateSpeed * 0.85f;
+                        targetPitch = Mathf.Clamp(targetPitch, minPitch, maxPitch);
+                    }
+                }
+                else isDraggingRmb = false;
+
+                // Orta tuşla basıp sürükleme: harita zeminini kaydırma (Pan)
                 if (mouse.middleButton.isPressed)
                 {
-                    var d = mp - lastMouse;
-                    float unitsPerPixel = Cam.orthographicSize * 2f / Mathf.Max(1, Screen.height);
-                    pan -= (right * d.x + fwd * d.y / Mathf.Sin(pitch * Mathf.Deg2Rad)) * unitsPerPixel;
+                    float unitsPerPixel = 0.025f * Mathf.Clamp(zoom, 0.4f, 2.0f);
+                    pan -= (right * delta.x + fwd * delta.y / Mathf.Max(0.15f, Mathf.Sin(pitch * Mathf.Deg2Rad))) * unitsPerPixel;
                 }
                 lastMouse = mp;
             }
+
             if (kb != null)
             {
+                // Q & E: Tabletop Simulator klavye döndürmesi
+                if (kb.qKey.isPressed) targetYaw -= keyRotateSpeed * dt;
+                if (kb.eKey.isPressed) targetYaw += keyRotateSpeed * dt;
+
+                // WASD / Ok tuşları: kameranın baktığı açıya göre zemin hareketi
+                float speed = 14f * Mathf.Clamp(zoom, 0.35f, 2.0f);
+                if (kb.shiftKey.isPressed) speed *= 1.8f;
                 var move = Vector3.zero;
                 if (kb.wKey.isPressed || kb.upArrowKey.isPressed) move += fwd;
                 if (kb.sKey.isPressed || kb.downArrowKey.isPressed) move -= fwd;
                 if (kb.dKey.isPressed || kb.rightArrowKey.isPressed) move += right;
                 if (kb.aKey.isPressed || kb.leftArrowKey.isPressed) move -= right;
-                pan += move * dt * 14f * zoom;
-                if (kb.spaceKey.wasPressedThisFrame) { pan = Vector3.zero; zoom = 1f; }
+                pan += move * dt * speed;
+
+                // Space tuşu: kamerayı merkez açı ve konuma sıfırla
+                if (kb.spaceKey.wasPressedThisFrame)
+                {
+                    pan = Vector3.zero;
+                    targetZoom = 1f;
+                    targetYaw = 45f;
+                    targetPitch = 38f;
+                }
             }
-            // çok uzaklaşmasın
+
+            // Açı ve zoom yumuşatması
+            yaw = Mathf.LerpAngle(yaw, targetYaw, dt * 14f);
+            pitch = Mathf.Lerp(pitch, targetPitch, dt * 14f);
+            zoom = Mathf.Lerp(zoom, targetZoom, dt * 10f);
+
+            // Harita çevresinde serbest hareket sınırları (masanın dışını da görebilsin)
             var ext = target.extents;
-            pan.x = Mathf.Clamp(pan.x, -ext.x, ext.x);
-            pan.z = Mathf.Clamp(pan.z, -ext.z, ext.z);
+            float maxPanX = ext.x * 1.35f;
+            float maxPanZ = ext.z * 1.35f;
+            pan.x = Mathf.Clamp(pan.x, -maxPanX, maxPanX);
+            pan.z = Mathf.Clamp(pan.z, -maxPanZ, maxPanZ);
         }
 
         void Apply(bool instant)
@@ -126,22 +207,22 @@ namespace BlindAttack.Game
             }
             float mapW = maxX - minX, mapH = maxY - minY;
 
-            // arayüzün kapladığı yer
             float sh = Mathf.Max(1, Screen.height);
             var ins = Application.isPlaying && UiInsets != null ? UiInsets() : Vector2.zero;
             float topFrac = Mathf.Clamp01(ins.x / sh), botFrac = Mathf.Clamp01(ins.y / sh);
             float availFrac = Mathf.Max(0.3f, 1f - topFrac - botFrac);
 
             const float margin = 1.06f;
+            float halfFovRad = Cam.fieldOfView * 0.5f * Mathf.Deg2Rad;
+            float tanHalfFov = Mathf.Max(0.01f, Mathf.Tan(halfFovRad));
+
             float size = Mathf.Max(mapH * 0.5f / availFrac, mapW * 0.5f / Mathf.Max(0.1f, Cam.aspect)) * margin;
             float targetSize = size * zoom;
-            float newSize = instant ? targetSize : Mathf.Lerp(Cam.orthographicSize, targetSize, Time.unscaledDeltaTime * 8f);
-            if (Application.isPlaying || Mathf.Abs(Cam.orthographicSize - newSize) > 0.001f) Cam.orthographicSize = newSize;
+            float currentDist = targetSize / tanHalfFov;
 
-            // boş alanın ortası ekran ortasından ne kadar kaymış?
-            float availCenter = botFrac + availFrac * 0.5f;       // 0..1 (alttan)
-            float shiftWorld = (availCenter - 0.5f) * 2f * Cam.orthographicSize;
-            // harita merkezi o noktaya gelsin: kamerayı ters yöne kaydır
+            float availCenter = botFrac + availFrac * 0.5f;
+            float shiftWorld = (availCenter - 0.5f) * 2f * targetSize;
+
             var focus = c + pan;
             if (follow != null && follow.gameObject.activeInHierarchy && Application.isPlaying)
             {
@@ -153,14 +234,13 @@ namespace BlindAttack.Game
             else followOffset = Vector3.Lerp(followOffset, Vector3.zero, instant ? 1f : Time.unscaledDeltaTime * 3f);
             focus += followOffset;
 
-            var pos = focus - forward * 40f - up * shiftWorld;
+            var pos = focus - forward * currentDist - up * shiftWorld;
             if (shake > 0f && Application.isPlaying)
             {
                 var r = UnityEngine.Random.insideUnitCircle * shake * 0.25f;
                 pos += right * r.x + up * r.y;
                 shake = Mathf.Max(0f, shake - Time.unscaledDeltaTime * 2.5f);
             }
-            // edit modunda gereksiz yere sahneyi "değişti" diye işaretlemesin
             if (Application.isPlaying || (transform.position - pos).sqrMagnitude > 1e-6f) transform.position = pos;
         }
     }

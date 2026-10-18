@@ -65,20 +65,24 @@ namespace BlindAttack.Game
             Map = null;
         }
 
+        bool builtHostile;
+        public bool IsHostile => builtHostile;
+
         /// <summary>Haritayı kurar. Aynı harita zaten kuruluysa sadece birimleri temizler.</summary>
-        public void Build(int mapIndex)
+        public void Build(int mapIndex, bool hostile = false)
         {
-            if (builtIndex == mapIndex && Map != null && generated != null)
+            if (builtIndex == mapIndex && builtHostile == hostile && Map != null && generated != null)
             {
                 ClearUnits();
                 return;
             }
             ClearGenerated();
             builtIndex = mapIndex;
+            builtHostile = hostile;
             Map = MapLibrary.Create(mapIndex);
 
             generated = Gen.Group(transform, "Harita: " + Map.Name);
-            BuildGround(mapIndex);
+            BuildGround(mapIndex, hostile);
             var trees = Gen.Group(generated, "Ağaçlar");
             var hedges = Gen.Group(generated, "Çalılar");
             var ruins = Gen.Group(generated, "Taş Harabeler");
@@ -92,7 +96,7 @@ namespace BlindAttack.Game
                     var c = new Cell(x, y);
                     switch (Map.Get(c))
                     {
-                        case Tile.Tree: BuildTree(trees, c, mapIndex); break;
+                        case Tile.Tree: BuildTree(trees, c, mapIndex, hostile); break;
                         case Tile.Hedge: BuildHedge(hedges, c, mapIndex); break;
                         case Tile.Wall: BuildRuin(ruins, c, mapIndex); break;
                         case Tile.Rock: BuildRocks(rocks, c, mapIndex); break;
@@ -122,12 +126,16 @@ namespace BlindAttack.Game
         float R(Cell c, int salt) => Noise.Hash(c.X, c.Y, builtIndex * 1000 + salt);
 
         // ---------------- Zemin ----------------
-        void BuildGround(int seed)
+        void BuildGround(int seed, bool hostile = false)
         {
             const int ppc = 28; // hücre başına piksel
             int w = Map.Width * ppc, h = Map.Height * ppc;
             var px = new Color[w * h];
             var rng = new System.Random(seed * 977 + 13);
+
+            Color grassA = hostile ? new Color(0.74f, 0.44f, 0.24f) : Art.GrassA;
+            Color grassB = hostile ? new Color(0.62f, 0.34f, 0.18f) : Art.GrassB;
+            Color meadowTint = hostile ? new Color(0.85f, 0.55f, 0.24f) : new Color(0.74f, 0.84f, 0.42f);
 
             // her hücre için yakın çevre bilgisi (kenar koyulaştırma için)
             for (int py = 0; py < h; py++)
@@ -146,12 +154,12 @@ namespace BlindAttack.Game
                             c = Color.Lerp(Art.PathB, Art.PathA, n); break;
                         case Tile.Water: c = Color.Lerp(new Color(0.78f, 0.70f, 0.50f), new Color(0.62f, 0.56f, 0.40f), n); break;
                         case Tile.Wall: case Tile.House: c = Color.Lerp(new Color(0.58f, 0.55f, 0.46f), new Color(0.66f, 0.62f, 0.50f), n); break;
-                        case Tile.Rock: c = Color.Lerp(Art.GrassDark, new Color(0.55f, 0.55f, 0.45f), n); break;
+                        case Tile.Rock: c = Color.Lerp(hostile ? new Color(0.58f, 0.30f, 0.22f) : Art.GrassDark, new Color(0.55f, 0.55f, 0.45f), n); break;
                         default:
-                            c = Color.Lerp(Art.GrassA, Art.GrassB, n);
-                            // açık çayır lekeleri
+                            c = Color.Lerp(grassA, grassB, n);
+                            // açık çayır / yanık toprak lekeleri
                             float meadow = Mathf.Clamp01((Noise.Value(fx * 0.35f, fy * 0.35f, seed + 21) - 0.6f) * 4f);
-                            c = Color.Lerp(c, new Color(0.74f, 0.84f, 0.42f), meadow * 0.5f);
+                            c = Color.Lerp(c, meadowTint, meadow * 0.5f);
                             break;
                     }
 
@@ -184,8 +192,8 @@ namespace BlindAttack.Game
                 float cx = (float)rng.NextDouble() * w, cy = (float)rng.NextDouble() * h;
                 var tile = Map.Get(Mathf.FloorToInt(cx / ppc), Mathf.FloorToInt(cy / ppc));
                 bool path = tile == Tile.Path || tile == Tile.Start || tile == Tile.Exit || tile == Tile.Bridge || tile == Tile.Wall || tile == Tile.House;
-                Color light = path ? new Color(0.92f, 0.80f, 0.58f) : new Color(0.72f, 0.88f, 0.44f);
-                Color dark = path ? new Color(0.60f, 0.46f, 0.30f) : new Color(0.30f, 0.52f, 0.22f);
+                Color light = path ? new Color(0.92f, 0.80f, 0.58f) : (hostile ? new Color(0.88f, 0.52f, 0.26f) : new Color(0.72f, 0.88f, 0.44f));
+                Color dark = path ? new Color(0.60f, 0.46f, 0.30f) : (hostile ? new Color(0.55f, 0.28f, 0.18f) : new Color(0.30f, 0.52f, 0.22f));
                 var col = rng.NextDouble() < 0.55 ? light : dark;
                 float r = 2.5f + (float)rng.NextDouble() * 5f;
                 float ang = (float)rng.NextDouble();
@@ -207,7 +215,7 @@ namespace BlindAttack.Game
         }
 
         // ---------------- Engeller ----------------
-        public static void Tree(Transform parent, Vector3 pos, float r1, float r2, float r3, float scale)
+        public static void Tree(Transform parent, Vector3 pos, float r1, float r2, float r3, float scale, bool hostile = false)
         {
             var root = new GameObject("Ağaç").transform;
             root.SetParent(parent, false);
@@ -219,8 +227,8 @@ namespace BlindAttack.Game
             {
                 // çam
                 Gen.MeshObj(root, "Gövde", MeshGen.Cylinder(6, 0.1f, 0.07f), bark, Vector3.zero, new Vector3(1f, 0.5f, 1f));
-                var pine = Art.Lit(Art.Vary(new Color(0.20f, 0.45f, 0.30f), r3, 0.18f));
-                var pineLight = Art.Lit(Art.Vary(new Color(0.30f, 0.56f, 0.34f), r3, 0.18f));
+                var pine = Art.Lit(Art.Vary(hostile ? new Color(0.52f, 0.32f, 0.22f) : new Color(0.20f, 0.45f, 0.30f), r3, 0.18f));
+                var pineLight = Art.Lit(Art.Vary(hostile ? new Color(0.68f, 0.44f, 0.26f) : new Color(0.30f, 0.56f, 0.34f), r3, 0.18f));
                 Gen.MeshObj(root, "Dal1", MeshGen.Cone(7), pine, new Vector3(0, 0.35f, 0), new Vector3(1.05f, 0.75f, 1.05f));
                 Gen.MeshObj(root, "Dal2", MeshGen.Cone(7), pineLight, new Vector3(0, 0.75f, 0), new Vector3(0.82f, 0.65f, 0.82f), new Vector3(0, 25, 0));
                 Gen.MeshObj(root, "Dal3", MeshGen.Cone(7), pine, new Vector3(0, 1.12f, 0), new Vector3(0.55f, 0.6f, 0.55f), new Vector3(0, 50, 0));
@@ -229,8 +237,8 @@ namespace BlindAttack.Game
             {
                 // yuvarlak yapraklı ağaç
                 Gen.MeshObj(root, "Gövde", MeshGen.Cylinder(6, 0.13f, 0.08f), bark, Vector3.zero, new Vector3(1f, 0.75f, 1f));
-                var leaf = Art.Lit(Art.Vary(Art.Leaf, r3, 0.2f));
-                var leafLight = Art.Lit(Art.Vary(Art.LeafLight, r3, 0.2f));
+                var leaf = Art.Lit(Art.Vary(hostile ? new Color(0.88f, 0.38f, 0.18f) : Art.Leaf, r3, 0.2f));
+                var leafLight = Art.Lit(Art.Vary(hostile ? new Color(0.96f, 0.58f, 0.22f) : Art.LeafLight, r3, 0.2f));
                 int v = (int)(r3 * 6);
                 Gen.MeshObj(root, "Yaprak1", MeshGen.Blob(v), leaf, new Vector3(0, 0.95f, 0), new Vector3(1.0f, 0.82f, 1.0f));
                 Gen.MeshObj(root, "Yaprak2", MeshGen.Blob(v + 1), leafLight, new Vector3(0.18f, 1.25f, 0.08f), new Vector3(0.68f, 0.6f, 0.68f));
@@ -242,11 +250,11 @@ namespace BlindAttack.Game
             }
         }
 
-        void BuildTree(Transform g, Cell c, int seed)
+        void BuildTree(Transform g, Cell c, int seed, bool hostile = false)
         {
             bool edge = c.X == 0 || c.Y == 0 || c.X == Map.Width - 1 || c.Y == Map.Height - 1;
             float s = (edge ? 1.05f : 0.9f) + R(c, 1) * 0.35f;
-            Tree(g, CellToWorld(c) + new Vector3((R(c, 2) - 0.5f) * 0.25f, 0, (R(c, 3) - 0.5f) * 0.25f), R(c, 4), R(c, 5), R(c, 6), s);
+            Tree(g, CellToWorld(c) + new Vector3((R(c, 2) - 0.5f) * 0.25f, 0, (R(c, 3) - 0.5f) * 0.25f), R(c, 4), R(c, 5), R(c, 6), s, hostile);
         }
 
         void BuildHedge(Transform g, Cell c, int seed)

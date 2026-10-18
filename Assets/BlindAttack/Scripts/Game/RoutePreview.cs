@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using BlindAttack.Core;
+using PrimeTween;
 using UnityEngine;
 
 namespace BlindAttack.Game
@@ -60,6 +61,8 @@ namespace BlindAttack.Game
             var b = new GameObject("Rozet " + text).transform;
             b.SetParent(root, false);
             b.localPosition = pos + Vector3.up * 1.25f;
+            b.localScale = Vector3.zero;
+            Tween.Scale(b, Vector3.one, 0.22f, Ease.OutBack);
             var bg = Gen.MeshObj(b, "Arka", MeshGen.Disc(20), badgeMat, Vector3.zero, new Vector3(0.42f * size * (text.Length > 2 ? 2.2f : 1f), 1, 0.42f * size), new Vector3(-90, 0, 0));
             bg.GetComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             var go = new GameObject("Yazı");

@@ -1,4 +1,5 @@
 using System;
+using PrimeTween;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
@@ -22,7 +23,6 @@ namespace BlindAttack.Game
         public static Canvas Canvas { get; private set; }
         static Text toastText;
         static CanvasGroup toastGroup;
-        static float toastTime;
 
         public static Font Font => Effects.Font;
 
@@ -50,32 +50,31 @@ namespace BlindAttack.Game
             var toast = Panel(Canvas.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Color(0.2f, 0.12f, 0.07f, 0.9f));
             var rt = (RectTransform)toast.transform;
             rt.pivot = new Vector2(0.5f, 0f);
-            rt.anchoredPosition = new Vector2(0, 200);
+            rt.anchoredPosition = new Vector2(0, 190);
             rt.sizeDelta = new Vector2(620, 60);
             toastGroup = toast.AddComponent<CanvasGroup>();
             toastGroup.alpha = 0f;
             toastGroup.blocksRaycasts = false;
             toastText = Label(toast.transform, "", 28, Color.white, TextAnchor.MiddleCenter);
             Stretch(toastText.rectTransform, 10);
-            toast.AddComponent<ToastFader>();
         }
 
         public static void Toast(string msg, float seconds = 2f)
         {
             if (!toastText) return;
             toastText.text = msg;
-            toastTime = seconds;
-            toastGroup.alpha = 1f;
             toastGroup.transform.SetAsLastSibling();
-        }
-
-        class ToastFader : MonoBehaviour
-        {
-            void Update()
+            var rt = (RectTransform)toastGroup.transform;
+            rt.anchoredPosition = new Vector2(0, 180);
+            Tween.StopAll(toastGroup);
+            Tween.StopAll(rt);
+            Tween.Alpha(toastGroup, 1f, 0.2f, Ease.OutQuad);
+            Tween.UIAnchoredPosition(rt, new Vector2(0, 210), 0.22f, Ease.OutBack);
+            Tween.Delay(seconds).OnComplete(() =>
             {
-                if (toastTime > 0f) { toastTime -= Time.unscaledDeltaTime; return; }
-                toastGroup.alpha = Mathf.MoveTowards(toastGroup.alpha, 0f, Time.unscaledDeltaTime * 3f);
-            }
+                if (toastGroup) Tween.Alpha(toastGroup, 0f, 0.35f, Ease.InQuad);
+            });
+            AudioManager.Play(SoundId.UiCopy, 0.6f);
         }
 
         public static bool PointerOverUi() => EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
@@ -177,6 +176,7 @@ namespace BlindAttack.Game
             cb.disabledColor = new Color(0.55f, 0.52f, 0.48f, 0.8f);
             b.colors = cb;
             b.targetGraphic = img;
+            go.AddComponent<ButtonJuice>();
             if (onClick != null) b.onClick.AddListener(() => onClick());
             var t = Title(go.transform, label, fontSize, Color.white);
             Stretch(t.rectTransform, 6);
@@ -238,6 +238,59 @@ namespace BlindAttack.Game
             if (!le) le = c.gameObject.AddComponent<LayoutElement>();
             le.preferredWidth = w; le.preferredHeight = h;
             le.minHeight = h;
+        }
+    }
+
+    public class ButtonJuice : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler, IPointerDownHandler, IPointerUpHandler, IPointerClickHandler
+    {
+        public bool DisableSound;
+        Button btn;
+        Vector3 baseScale = Vector3.one;
+
+        void Awake()
+        {
+            btn = GetComponent<Button>();
+            baseScale = transform.localScale;
+        }
+
+        void OnDisable()
+        {
+            transform.localScale = baseScale;
+        }
+
+        public void OnPointerEnter(PointerEventData eventData)
+        {
+            if (btn != null && !btn.interactable) return;
+            Tween.StopAll(transform);
+            Tween.Scale(transform, baseScale * 1.045f, 0.12f, Ease.OutQuad);
+            if (!DisableSound) AudioManager.Play(SoundId.UiHover, 0.35f);
+        }
+
+        public void OnPointerExit(PointerEventData eventData)
+        {
+            Tween.StopAll(transform);
+            Tween.Scale(transform, baseScale, 0.15f, Ease.OutQuad);
+        }
+
+        public void OnPointerDown(PointerEventData eventData)
+        {
+            if (btn != null && !btn.interactable) return;
+            Tween.StopAll(transform);
+            Tween.Scale(transform, baseScale * 0.94f, 0.08f, Ease.OutQuad);
+        }
+
+        public void OnPointerUp(PointerEventData eventData)
+        {
+            if (btn != null && !btn.interactable) return;
+            Tween.StopAll(transform);
+            Tween.Scale(transform, baseScale * 1.045f, 0.12f, Ease.OutBack);
+        }
+
+        public void OnPointerClick(PointerEventData eventData)
+        {
+            if (btn != null && !btn.interactable) return;
+            if (!DisableSound) AudioManager.Play(SoundId.UiClick, 0.8f);
+            Tween.PunchScale(transform, new Vector3(0.06f, -0.05f, 0f), 0.18f, 10);
         }
     }
 }

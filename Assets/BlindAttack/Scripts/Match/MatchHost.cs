@@ -125,8 +125,7 @@ namespace BlindAttack.Match
                 case HostState.RoundEnd:
                     if (timeUp)
                     {
-                        bool decided = wins[0] > MatchRules.Rounds / 2 || wins[1] > MatchRules.Rounds / 2;
-                        if (round >= MatchRules.Rounds || decided) EndMatch();
+                        if (round >= MatchRules.Rounds) EndMatch();
                         else BeginRound(round + 1);
                     }
                     break;

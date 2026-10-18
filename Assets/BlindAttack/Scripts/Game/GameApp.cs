@@ -48,6 +48,8 @@ namespace BlindAttack.Game
             Application.runInBackground = true;
             Application.targetFrameRate = 120;
 
+            AudioManager.EnsureExists();
+
             var camera = Camera.main;
             if (camera == null)
             {
@@ -56,7 +58,8 @@ namespace BlindAttack.Game
             }
             cam = camera.GetComponent<IsoCamera>();
             if (!cam) cam = camera.gameObject.AddComponent<IsoCamera>();
-            ApplyLook(camera);
+            cam.MenuMode = true;
+            ApplyLook(camera, false);
 
             view = FindAnyObjectByType<MapView>();
             if (!view) view = new GameObject("Harita").AddComponent<MapView>();
@@ -90,14 +93,22 @@ namespace BlindAttack.Game
                 ui.SetFullscreenLabel(fs);
             };
             session.CanRematch = CanRematch;
+            session.OnMatchFinishedReturn = () => BackToMenu("");
 
             ShowMenuMap();
         }
 
         void ShowMenuMap()
         {
-            view.Build(matchMap == MapChoice.HerMactaDegisir ? PeekNextMap() : (int)matchMap);
-            cam.Frame(view.WorldBounds);
+            view.Build(matchMap == MapChoice.HerMactaDegisir ? PeekNextMap() : (int)matchMap, false);
+            var env = FindAnyObjectByType<EnvironmentView>();
+            if (env) env.Build(false);
+            ApplyLook(cam ? cam.Cam : Camera.main, false);
+            if (cam)
+            {
+                cam.MenuMode = true;
+                cam.Frame(view.WorldBounds);
+            }
         }
 
         // ---------------- Harita rotasyonu ----------------
@@ -124,6 +135,7 @@ namespace BlindAttack.Game
         void Rematch()
         {
             if (!CanRematch()) { UiKit.Toast("Rakip ayrıldı, rövanş başlatılamıyor."); return; }
+            if (cam) cam.MenuMode = false;
             inbox.Clear();
             host.StartMatch(Environment.TickCount, NextMatchMap());
         }
@@ -154,12 +166,12 @@ namespace BlindAttack.Game
         }
 
         /// <summary>Işık, ortam rengi ve kamera arka planı (editör sahne kurulumu da kullanır).</summary>
-        public static void ApplyLook(Camera camera)
+        public static void ApplyLook(Camera camera, bool hostile = false)
         {
             if (camera != null)
             {
                 camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.backgroundColor = EnvironmentView.FarGround;
+                camera.backgroundColor = hostile ? EnvironmentView.FarGroundHostile : EnvironmentView.FarGroundFriendly;
             }
 
             Light sun = null;
@@ -167,17 +179,28 @@ namespace BlindAttack.Game
                 if (l.type == LightType.Directional) { sun = l; break; }
             if (sun == null) sun = new GameObject("Güneş").AddComponent<Light>();
             sun.type = LightType.Directional;
-            sun.color = new Color(1f, 0.93f, 0.80f);
-            sun.intensity = 1.25f;
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = 0.55f;
+            sun.shadowStrength = hostile ? 0.65f : 0.55f;
             sun.transform.rotation = Quaternion.Euler(50f, 20f, 0f);
 
-            // sıcak, yumuşak ortam ışığı: gölgeler simsiyah olmasın (el boyaması hissi)
-            RenderSettings.ambientMode = AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor = new Color(0.78f, 0.85f, 0.95f);
-            RenderSettings.ambientEquatorColor = new Color(0.72f, 0.70f, 0.60f);
-            RenderSettings.ambientGroundColor = new Color(0.45f, 0.40f, 0.32f);
+            if (hostile)
+            {
+                sun.color = new Color(1.0f, 0.88f, 0.74f);
+                sun.intensity = 1.30f;
+                RenderSettings.ambientMode = AmbientMode.Trilight;
+                RenderSettings.ambientSkyColor = new Color(0.92f, 0.78f, 0.70f);
+                RenderSettings.ambientEquatorColor = new Color(0.80f, 0.60f, 0.50f);
+                RenderSettings.ambientGroundColor = new Color(0.56f, 0.38f, 0.28f);
+            }
+            else
+            {
+                sun.color = new Color(1f, 0.93f, 0.80f);
+                sun.intensity = 1.25f;
+                RenderSettings.ambientMode = AmbientMode.Trilight;
+                RenderSettings.ambientSkyColor = new Color(0.78f, 0.85f, 0.95f);
+                RenderSettings.ambientEquatorColor = new Color(0.72f, 0.70f, 0.60f);
+                RenderSettings.ambientGroundColor = new Color(0.45f, 0.40f, 0.32f);
+            }
             RenderSettings.fog = false;
         }
 
@@ -197,6 +220,7 @@ namespace BlindAttack.Game
             session.Send = m => Post(() => host?.OnPlayerMessage(0, m));
             host.SetName(0, name);
             host.SetName(1, "Bot");
+            if (cam) cam.MenuMode = false;
             session.Begin(0);
             host.StartMatch(seed, NextMatchMap());
             matchStarted = true;
@@ -281,6 +305,7 @@ namespace BlindAttack.Game
                 if (!matchStarted && m.StartsWith("HELLO"))
                 {
                     matchStarted = true;
+                    if (cam) cam.MenuMode = false;
                     session.Begin(0);
                     host.StartMatch(Environment.TickCount, NextMatchMap());
                 }
@@ -295,6 +320,7 @@ namespace BlindAttack.Game
             session.Send = m => net?.SendToHost(m);
             net.RemoteConnected += () => Post(() =>
             {
+                if (cam) cam.MenuMode = false;
                 session.Begin(1);
                 net?.SendToHost(Msg.Join("HELLO", myName.Replace("|", "")));
             });
@@ -327,6 +353,7 @@ namespace BlindAttack.Game
             connecting = false;
             ui.HidePlayback();
             ui.ShowMenu(status);
+            if (cam) cam.MenuMode = true;
             ShowMenuMap();
         }
 

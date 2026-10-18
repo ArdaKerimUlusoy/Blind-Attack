@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using BlindAttack.Core;
+using PrimeTween;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -22,6 +23,8 @@ namespace BlindAttack.Game
         GameObject ghost;
         ItemType ghostType;
         ItemType[] palette;
+        Vector2 rmbDownPos;
+        Cell? rmbCandidateCell;
 
         public int Spent => MatchRules.Spent(Placed);
         public int Budget => MatchRules.Budget(Defense);
@@ -79,7 +82,37 @@ namespace BlindAttack.Game
             go.transform.localPosition = MapView.CellToWorld(p.Cell);
             if (Items.Get(p.Type).IsDefense) go.transform.localRotation = Quaternion.Euler(0, 225f, 0);
             objects[p.Cell] = go;
-            if (fx) Effects.Burst(view.UnitsRoot, go.transform.position + Vector3.up * 0.2f, Visuals.IconColor(p.Type), 6, 2f, 0.06f);
+            if (fx)
+            {
+                go.transform.localScale = new Vector3(0.4f, 1.6f, 0.4f);
+                Tween.Scale(go.transform, new Vector3(1.22f, 0.78f, 1.22f), 0.12f, Ease.InQuad)
+                    .OnComplete(() => Tween.Scale(go.transform, Vector3.one, 0.16f, Ease.OutBack));
+
+                Effects.Burst(view.UnitsRoot, go.transform.position + Vector3.up * 0.2f, Visuals.IconColor(p.Type), 8, 2.5f, 0.07f);
+                Effects.Ring(view.UnitsRoot, go.transform.position, Visuals.IconColor(p.Type), 0.7f);
+                for (int s = 0; s < 4; s++)
+                {
+                    var vel = (UnityEngine.Random.insideUnitSphere + Vector3.up * 1.5f).normalized * 1.8f;
+                    Effects.Spark(view.UnitsRoot, go.transform.position + Vector3.up * 0.25f, new Color(1f, 0.9f, 0.4f), vel, 0.05f, 0.4f);
+                }
+
+                switch (p.Type)
+                {
+                    case ItemType.Ogre: AudioManager.Play(SoundId.PlaceOgre); break;
+                    case ItemType.SpikeTrap: AudioManager.Play(SoundId.PlaceTrap); break;
+                    case ItemType.SwordCrate:
+                    case ItemType.ArmorCrate:
+                    case ItemType.SpeedBoots:
+                    case ItemType.Bomb:
+                    case ItemType.Potion:
+                    case ItemType.Flag:
+                        AudioManager.Play(SoundId.PlaceCrate);
+                        break;
+                    default:
+                        AudioManager.Play(SoundId.PlaceUnit);
+                        break;
+                }
+            }
         }
 
         bool Remove(Cell c)
@@ -87,8 +120,13 @@ namespace BlindAttack.Game
             int idx = Placed.FindIndex(p => p.Cell == c);
             if (idx < 0) return false;
             Placed.RemoveAt(idx);
-            if (objects.TryGetValue(c, out var go) && go) Destroy(go);
+            if (objects.TryGetValue(c, out var go) && go)
+            {
+                Effects.Burst(view.UnitsRoot, go.transform.position + Vector3.up * 0.2f, new Color(0.85f, 0.85f, 0.9f), 6, 2.0f, 0.06f);
+                Destroy(go);
+            }
             objects.Remove(c);
+            AudioManager.Play(SoundId.Remove, 0.85f);
             return true;
         }
 
@@ -108,18 +146,37 @@ namespace BlindAttack.Game
 
             if (!view.ScreenToCell(cam, mouse.position.ReadValue(), out var cell)) { ShowGhost(null, false); Hint = ""; return; }
 
+            bool draggingCam = mouse.rightButton.isPressed || mouse.middleButton.isPressed;
             bool occupied = Placed.Exists(p => p.Cell == cell);
             string err = occupied ? null : MatchRules.CheckPlacement(view.Map, Placed, Selected, cell);
-            ShowGhost(occupied ? (Cell?)null : cell, err == null);
-            view.SetHover(cell, occupied ? new Color(1f, 0.85f, 0.3f) : err == null ? new Color(0.4f, 1f, 0.4f) : new Color(1f, 0.3f, 0.25f));
-            Hint = occupied ? "Sağ tık: kaldır" : err;
+            ShowGhost(draggingCam || occupied ? (Cell?)null : cell, err == null);
+            if (!draggingCam) view.SetHover(cell, occupied ? new Color(1f, 0.85f, 0.3f) : err == null ? new Color(0.4f, 1f, 0.4f) : new Color(1f, 0.3f, 0.25f));
+            else view.SetHover(null, Color.white);
+            Hint = occupied ? "Sağ tık: kaldır   Sağ tık sürükle / Q-E: döndür" : err;
 
-            if (mouse.leftButton.wasPressedThisFrame && !occupied)
+            if (mouse.leftButton.wasPressedThisFrame && !occupied && !draggingCam)
             {
                 if (err == null) { Add(new Placement(Selected, cell)); Changed?.Invoke(); }
-                else UiKit.Toast(err);
+                else
+                {
+                    UiKit.Toast(err);
+                    AudioManager.Play(SoundId.Error, 0.7f);
+                    if (ghost) Tween.ShakeLocalPosition(ghost.transform, new Vector3(0.18f, 0, 0), 0.2f, 25);
+                }
             }
-            if (mouse.rightButton.wasPressedThisFrame && Remove(cell)) Changed?.Invoke();
+
+            if (mouse.rightButton.wasPressedThisFrame)
+            {
+                rmbDownPos = mouse.position.ReadValue();
+                rmbCandidateCell = cell;
+            }
+            if (mouse.rightButton.wasReleasedThisFrame)
+            {
+                float dragDist = Vector2.Distance(mouse.position.ReadValue(), rmbDownPos);
+                if (dragDist < 7f && rmbCandidateCell.HasValue && Remove(rmbCandidateCell.Value))
+                    Changed?.Invoke();
+                rmbCandidateCell = null;
+            }
         }
 
         void ShowGhost(Cell? cell, bool valid)
