@@ -36,7 +36,9 @@ namespace BlindAttack.Game
             var scaler = go.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920, 1080);
-            scaler.matchWidthOrHeight = 0.5f;
+            // Expand: tuval her en-boy oranında en az 1920x1080 olur. Böylece 4:3 / 16:10 ekranlarda
+            // üst paneller yan yana sığar, geniş (21:9) ekranlarda da menü dikeyde çakışmaz.
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
             go.AddComponent<GraphicRaycaster>();
 
             if (EventSystem.current == null)
@@ -50,13 +52,14 @@ namespace BlindAttack.Game
             var toast = Panel(Canvas.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Color(0.2f, 0.12f, 0.07f, 0.9f));
             var rt = (RectTransform)toast.transform;
             rt.pivot = new Vector2(0.5f, 0f);
-            rt.anchoredPosition = new Vector2(0, 190);
+            rt.anchoredPosition = new Vector2(0, 240);
             rt.sizeDelta = new Vector2(620, 60);
             toastGroup = toast.AddComponent<CanvasGroup>();
             toastGroup.alpha = 0f;
             toastGroup.blocksRaycasts = false;
             toastText = Label(toast.transform, "", 28, Color.white, TextAnchor.MiddleCenter);
             Stretch(toastText.rectTransform, 10);
+            Fit(toastText, 18);
         }
 
         public static void Toast(string msg, float seconds = 2f)
@@ -65,11 +68,11 @@ namespace BlindAttack.Game
             toastText.text = msg;
             toastGroup.transform.SetAsLastSibling();
             var rt = (RectTransform)toastGroup.transform;
-            rt.anchoredPosition = new Vector2(0, 180);
+            rt.anchoredPosition = new Vector2(0, 215); // palet paneli (üstü ~194) ile çakışmasın
             Tween.StopAll(toastGroup);
             Tween.StopAll(rt);
             Tween.Alpha(toastGroup, 1f, 0.2f, Ease.OutQuad);
-            Tween.UIAnchoredPosition(rt, new Vector2(0, 210), 0.22f, Ease.OutBack);
+            Tween.UIAnchoredPosition(rt, new Vector2(0, 240), 0.22f, Ease.OutBack);
             Tween.Delay(seconds).OnComplete(() =>
             {
                 if (toastGroup) Tween.Alpha(toastGroup, 0f, 0.35f, Ease.InQuad);
@@ -141,6 +144,17 @@ namespace BlindAttack.Game
             t.verticalOverflow = VerticalWrapMode.Overflow;
             t.raycastTarget = false;
             rt.sizeDelta = new Vector2(400, size * 1.6f);
+            return t;
+        }
+
+        /// <summary>Metin kutusuna sığmazsa yazıyı küçültür (taşıp başka arayüzün üstüne binmesin).</summary>
+        public static Text Fit(Text t, int minSize)
+        {
+            t.resizeTextForBestFit = true;
+            t.resizeTextMaxSize = t.fontSize;
+            t.resizeTextMinSize = Mathf.Min(minSize, t.fontSize);
+            t.horizontalOverflow = HorizontalWrapMode.Wrap;
+            t.verticalOverflow = VerticalWrapMode.Truncate;
             return t;
         }
 

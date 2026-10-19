@@ -97,6 +97,7 @@ namespace BlindAttack.Game
             UiKit.Size(bannerTitle, 840, 56);
             bannerSub = UiKit.Label(territoryBanner.transform, "", 24, UiKit.Ink, TextAnchor.MiddleCenter);
             UiKit.Size(bannerSub, 840, 36);
+            UiKit.Fit(bannerSub, 18);
             territoryBanner.SetActive(false);
         }
 
@@ -122,7 +123,7 @@ namespace BlindAttack.Game
             srt.anchorMin = srt.anchorMax = new Vector2(0.5f, 1f); srt.pivot = new Vector2(0.5f, 1f);
             srt.anchoredPosition = new Vector2(0, -195); srt.sizeDelta = new Vector2(1200, 50);
 
-            var box = UiKit.Box(menu.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, -70), new Vector2(720, 700), UiKit.Parchment);
+            var box = UiKit.Box(menu.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, -95), new Vector2(720, 700), UiKit.Parchment); // alt başlıkla arası açıldı
             UiKit.VStack(box, 16, 34);
 
             nameInput = UiKit.Input(box.transform, "Adın");
@@ -146,12 +147,13 @@ namespace BlindAttack.Game
             UiKit.Size(lanLabel, 640, 34);
             var lanRow = Row(box.transform, 640, 62);
             ipInput = UiKit.Input(lanRow, "IP (boş = bu PC)", 24);
-            UiKit.Size(ipInput, 300, 62);
+            UiKit.Size(ipInput, 288, 62); // 288+160+160+2*16 = 640 (satır genişliği)
             UiKit.Size(UiKit.Button(lanRow, "LAN Kur", UiKit.WoodBtn, () => OnLanHost?.Invoke(PlayerName), 24), 160, 62);
             UiKit.Size(UiKit.Button(lanRow, "LAN Katıl", UiKit.WoodBtn, () => OnLanJoin?.Invoke(PlayerName, ipInput.text), 24), 160, 62);
 
             menuStatus = UiKit.Label(box.transform, "", 24, UiKit.Red, TextAnchor.MiddleCenter);
             UiKit.Size(menuStatus, 640, 70);
+            UiKit.Fit(menuStatus, 18);
         }
 
         Transform Row(Transform parent, float w, float h)
@@ -176,6 +178,7 @@ namespace BlindAttack.Game
             UiKit.Size(copyButton, 620, 66);
             waitInfo = UiKit.Label(waiting.transform, "Rakip bekleniyor...", 28, UiKit.Ink, TextAnchor.MiddleCenter);
             UiKit.Size(waitInfo, 620, 70);
+            UiKit.Fit(waitInfo, 18);
             UiKit.Size(UiKit.Button(waiting.transform, "İptal", UiKit.Red, () => OnCancel?.Invoke()), 620, 66);
         }
 
@@ -189,10 +192,12 @@ namespace BlindAttack.Game
             var top = UiKit.Box(hud.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -12), new Vector2(900, 100), UiKit.Parchment);
             topPanels.Add((RectTransform)top.transform);
             phaseTitle = UiKit.Title(top.transform, "", 36, UiKit.Ink);
-            Place(phaseTitle.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(28, -8), new Vector2(-140, 46));
+            Place(phaseTitle.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(28, -8), new Vector2(-156, 46));
             phaseTitle.alignment = TextAnchor.MiddleLeft;
+            UiKit.Fit(phaseTitle, 24);
             phaseSub = UiKit.Label(top.transform, "", 22, new Color(UiKit.Ink.r, UiKit.Ink.g, UiKit.Ink.b, 0.85f));
-            Place(phaseSub.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(30, -52), new Vector2(-140, 42));
+            Place(phaseSub.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(30, -54), new Vector2(-158, 40));
+            UiKit.Fit(phaseSub, 16);
             var timerBox = UiKit.Panel(top.transform, new Vector2(1, 0.5f), new Vector2(1, 0.5f), UiKit.WoodBtn);
             var trt = (RectTransform)timerBox.transform;
             trt.pivot = new Vector2(1, 0.5f); trt.anchoredPosition = new Vector2(-14, 0); trt.sizeDelta = new Vector2(100, 74);
@@ -205,6 +210,7 @@ namespace BlindAttack.Game
             scoreText = UiKit.Label(score.transform, "", 24, UiKit.Ink);
             UiKit.Stretch(scoreText.rectTransform, 18);
             scoreText.supportRichText = true;
+            UiKit.Fit(scoreText, 16);
 
             // sağ üst: harita
             var mapBox = UiKit.Box(hud.transform, new Vector2(1, 1), new Vector2(1, 1), new Vector2(-12, -12), new Vector2(380, 100), UiKit.Parchment);
@@ -212,16 +218,18 @@ namespace BlindAttack.Game
             mapText = UiKit.Label(mapBox.transform, "", 24, UiKit.Ink, TextAnchor.MiddleRight);
             UiKit.Stretch(mapText.rectTransform, 18);
             mapText.supportRichText = true;
+            UiKit.Fit(mapText, 16);
 
             // alt: palet
             palettePanel = UiKit.Box(hud.transform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 12), new Vector2(1560, 182), UiKit.Parchment);
             hintText = UiKit.Label(palettePanel.transform, "", 22, UiKit.Ink, TextAnchor.MiddleCenter);
             hintText.supportRichText = true;
-            Place(hintText.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -4), new Vector2(0, 34));
+            Place(hintText.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -4), new Vector2(-24, 34), new Vector2(0.5f, 1f));
+            UiKit.Fit(hintText, 14);
             var rowGo = new GameObject("PaletteRow");
             var rrt = UiKit.Rect(rowGo, palettePanel.transform);
             rrt.anchorMin = new Vector2(0, 0); rrt.anchorMax = new Vector2(1, 1);
-            rrt.offsetMin = new Vector2(18, 12); rrt.offsetMax = new Vector2(-330, -40);
+            rrt.offsetMin = new Vector2(18, 12); rrt.offsetMax = new Vector2(-346, -40); // Temizle butonu x=1228'de başlıyor
             UiKit.HStack(rowGo, 12, 0, TextAnchor.MiddleLeft);
             paletteRow = rowGo.transform;
 
@@ -236,6 +244,7 @@ namespace BlindAttack.Game
             playbackPanel = UiKit.Box(hud.transform, new Vector2(0.5f, 0), new Vector2(0.5f, 0), new Vector2(0, 12), new Vector2(1300, 130), UiKit.Parchment);
             playLabel = UiKit.Title(playbackPanel.transform, "", 32, UiKit.Ink, TextAnchor.MiddleLeft);
             Place(playLabel.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(26, -12), new Vector2(560, 44), new Vector2(0, 1));
+            UiKit.Fit(playLabel, 20);
             var hpBg = UiKit.Panel(playbackPanel.transform, new Vector2(0, 0), new Vector2(0, 0), new Color(0.25f, 0.15f, 0.1f));
             Place((RectTransform)hpBg.transform, new Vector2(0, 0), new Vector2(0, 0), new Vector2(26, 22), new Vector2(420, 34), new Vector2(0, 0));
             var hpFillGo = UiKit.Panel(hpBg.transform, Vector2.zero, Vector2.one, new Color(0.35f, 0.8f, 0.35f));
@@ -244,9 +253,11 @@ namespace BlindAttack.Game
             heroHpFill = hpFillGo.GetComponent<Image>();
             playInfo = UiKit.Label(playbackPanel.transform, "", 24, UiKit.Ink);
             Place(playInfo.rectTransform, new Vector2(0, 1), new Vector2(0, 1), new Vector2(600, -16), new Vector2(380, 40), new Vector2(0, 1));
+            UiKit.Fit(playInfo, 16);
             playStats = UiKit.Label(playbackPanel.transform, "", 24, UiKit.Ink);
             playStats.supportRichText = true;
-            Place(playStats.rectTransform, new Vector2(0, 0), new Vector2(0, 0), new Vector2(470, 18), new Vector2(520, 42), new Vector2(0, 0));
+            Place(playStats.rectTransform, new Vector2(0, 0), new Vector2(0, 0), new Vector2(470, 18), new Vector2(500, 42), new Vector2(0, 0));
+            UiKit.Fit(playStats, 16);
             var speedRow = new GameObject("Speed");
             var srt2 = UiKit.Rect(speedRow, playbackPanel.transform);
             srt2.anchorMin = srt2.anchorMax = new Vector2(1, 0.5f); srt2.pivot = new Vector2(1, 0.5f);
@@ -257,10 +268,18 @@ namespace BlindAttack.Game
             UiKit.Size(UiKit.Button(speedRow.transform, "Atla", UiKit.Red, () => OnSkipPlayback?.Invoke(), 26), 100, 64);
 
             // bekleme yazısı
-            overlay = UiKit.Box(hud.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -128), new Vector2(640, 96), new Color(0.2f, 0.12f, 0.07f, 0.85f));
+            overlay = UiKit.Box(hud.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -128), new Vector2(640, 116), new Color(0.2f, 0.12f, 0.07f, 0.85f));
             overlay.GetComponent<Image>().raycastTarget = false;
             overlayText = UiKit.Title(overlay.transform, "", 34, Color.white);
             UiKit.Stretch(overlayText.rectTransform, 10);
+            UiKit.Fit(overlayText, 22);
+        }
+
+        /// <summary>Öne getirir ama ESC menüsü açıksa o hep en üstte kalır.</summary>
+        void BringToFront(Transform t)
+        {
+            t.SetAsLastSibling();
+            if (pauseRoot && pauseRoot.activeSelf) pauseRoot.transform.SetAsLastSibling();
         }
 
         static void Place(RectTransform rt, Vector2 anchorMin, Vector2 anchorMax, Vector2 pos, Vector2 size, Vector2? pivot = null)
@@ -274,13 +293,14 @@ namespace BlindAttack.Game
         // ================= SONUÇLAR =================
         void BuildResults(Transform root)
         {
-            roundPanel = UiKit.Box(root, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(760, 380), UiKit.Parchment);
+            roundPanel = UiKit.Box(root, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0, 40), new Vector2(760, 400), UiKit.Parchment);
             UiKit.VStack(roundPanel, 12, 36);
             roundTitle = UiKit.Title(roundPanel.transform, "", 54, UiKit.WoodBtn);
             UiKit.Size(roundTitle, 680, 80);
             roundBody = UiKit.Label(roundPanel.transform, "", 30, UiKit.Ink, TextAnchor.MiddleCenter);
             roundBody.supportRichText = true;
             UiKit.Size(roundBody, 680, 220);
+            UiKit.Fit(roundBody, 20);
 
             matchPanel = UiKit.Box(root, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(780, 640), UiKit.Parchment);
             UiKit.VStack(matchPanel, 14, 40);
@@ -289,6 +309,7 @@ namespace BlindAttack.Game
             matchBody = UiKit.Label(matchPanel.transform, "", 32, UiKit.Ink, TextAnchor.MiddleCenter);
             matchBody.supportRichText = true;
             UiKit.Size(matchBody, 700, 200);
+            UiKit.Fit(matchBody, 20);
             rematchButton = UiKit.Button(matchPanel.transform, "Rövanş (sıradaki harita)", UiKit.Green, () => OnRematch?.Invoke());
             UiKit.Size(rematchButton, 700, 80);
             rematchNote = UiKit.Label(matchPanel.transform, "Oda sahibi rövanşı başlatabilir...", 24, UiKit.Ink, TextAnchor.MiddleCenter, FontStyle.Italic);
@@ -335,6 +356,7 @@ namespace BlindAttack.Game
                 25, UiKit.Ink, TextAnchor.UpperLeft);
             help.supportRichText = true;
             UiKit.Size(help, 1100, 660);
+            UiKit.Fit(help, 17);
             UiKit.Size(UiKit.Button(helpBox.transform, "Geri", UiKit.Green, () => ShowHelp(false)), 1100, 70);
 
             BuildSettings();
@@ -364,7 +386,7 @@ namespace BlindAttack.Game
             {
                 AudioManager.Muted = !AudioManager.Muted;
                 RefreshSettingsLabels();
-            }, 26);
+            }, 24);
             muteLabel = mute.GetComponentInChildren<Text>();
             UiKit.Size(mute, 336, 70);
             var shake = UiKit.Button(toggles, "", UiKit.WoodBtn, () =>
@@ -372,8 +394,9 @@ namespace BlindAttack.Game
                 IsoCamera.ShakeEnabled = !IsoCamera.ShakeEnabled;
                 OnShakeChanged?.Invoke(IsoCamera.ShakeEnabled);
                 RefreshSettingsLabels();
-            }, 26);
+            }, 24);
             shakeLabel = shake.GetComponentInChildren<Text>();
+            UiKit.Fit(muteLabel, 18); UiKit.Fit(shakeLabel, 18);
             UiKit.Size(shake, 336, 70);
 
             var fs = UiKit.Button(settingsBox.transform, "", UiKit.WoodBtn, () => { OnToggleFullscreen?.Invoke(); }, 26);
@@ -393,7 +416,7 @@ namespace BlindAttack.Game
             var l = UiKit.Label(row, label, 30, UiKit.Ink, TextAnchor.MiddleLeft, FontStyle.Bold);
             UiKit.Size(l, 170, 74);
             var valueText = UiKit.Label(row, "", 28, UiKit.WoodBtn, TextAnchor.MiddleRight, FontStyle.Bold);
-            var slider = MakeSlider(row, 400, value, v =>
+            var slider = MakeSlider(row, 390, value, v =>
             {
                 onChange(v);
                 valueText.text = Mathf.RoundToInt(v * 100f) + "%";
@@ -451,7 +474,7 @@ namespace BlindAttack.Game
         {
             if (muteLabel) muteLabel.text = AudioManager.Muted ? "Sesi Aç" : "Sesi Kapat";
             if (shakeLabel) shakeLabel.text = IsoCamera.ShakeEnabled ? "Ekran Sarsıntısı: Açık" : "Ekran Sarsıntısı: Kapalı";
-            if (settingsFullscreenLabel) settingsFullscreenLabel.text = Screen.fullScreen ? "Pencere Modu" : "Tam Ekran";
+            if (settingsFullscreenLabel) settingsFullscreenLabel.text = GameApp.IsFullscreen ? "Pencere Modu" : "Tam Ekran";
         }
 
         void ShowSettings(bool show)
@@ -596,7 +619,7 @@ namespace BlindAttack.Game
         {
             if (territoryBanner == null) return;
             territoryBanner.SetActive(true);
-            territoryBanner.transform.SetAsLastSibling();
+            BringToFront(territoryBanner.transform);
             var bgImg = territoryBanner.GetComponent<Image>();
             if (bgImg) bgImg.color = hostile ? new Color(0.24f, 0.08f, 0.06f, 0.95f) : UiKit.Parchment;
             bannerTitle.text = title;
@@ -753,6 +776,7 @@ namespace BlindAttack.Game
         {
             roundPanel.SetActive(false);
             if (statsPanel) statsPanel.SetActive(false);
+            LayoutAchievement();
         }
 
         string matchBodyBase = "";
@@ -812,6 +836,7 @@ namespace BlindAttack.Game
             Place(cineSub.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -118), new Vector2(0, 64), new Vector2(0.5f, 1f));
             cineDetail = UiKit.Label(textRoot.transform, "", 28, new Color(1f, 0.93f, 0.8f, 0.95f), TextAnchor.MiddleCenter, FontStyle.Italic);
             Place(cineDetail.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -184), new Vector2(0, 44), new Vector2(0.5f, 1f));
+            UiKit.Fit(cineDetail, 20);
             cineRoot.SetActive(false);
         }
 
@@ -819,7 +844,7 @@ namespace BlindAttack.Game
         public void ShowCinematic(string title, string sub, string detail)
         {
             cineRoot.SetActive(true);
-            cineRoot.transform.SetAsLastSibling();
+            BringToFront(cineRoot.transform);
             cineClosing = false;
             cineTitle.text = title; cineSub.text = sub; cineDetail.text = detail;
             Tween.StopAll(cineText);
@@ -857,10 +882,10 @@ namespace BlindAttack.Game
             statsTitle = UiKit.Title(statsPanel.transform, "", 56, UiKit.WoodBtn);
             Place(statsTitle.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -18), new Vector2(0, 76), new Vector2(0.5f, 1f));
 
-            Column(statsPanel.transform, -285f, out headL, out scoreL, out resL, out bodyL, UiKit.Blue);
-            Column(statsPanel.transform, 285f, out headR, out scoreR, out resR, out bodyR, UiKit.Red);
+            Column(statsPanel.transform, -300f, out headL, out scoreL, out resL, out bodyL, UiKit.Blue);
+            Column(statsPanel.transform, 300f, out headR, out scoreR, out resR, out bodyR, UiKit.Red);
             var vs = UiKit.Title(statsPanel.transform, "VS", 44, new Color(UiKit.Ink.r, UiKit.Ink.g, UiKit.Ink.b, 0.55f));
-            Place(vs.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -210), new Vector2(100, 60), new Vector2(0.5f, 0.5f));
+            Place(vs.rectTransform, new Vector2(0.5f, 1), new Vector2(0.5f, 1), new Vector2(0, -210), new Vector2(76, 60), new Vector2(0.5f, 0.5f));
 
             statsVerdict = UiKit.Title(statsPanel.transform, "", 46, UiKit.Ink);
             statsVerdict.supportRichText = true;
@@ -873,11 +898,12 @@ namespace BlindAttack.Game
 
         void Column(Transform parent, float x, out Text head, out Text score, out Text result, out Text body, Color accent)
         {
-            var col = UiKit.Box(parent, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(x, -104), new Vector2(530, 530), UiKit.ParchmentDark);
+            var col = UiKit.Box(parent, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(x, -104), new Vector2(520, 510), UiKit.ParchmentDark); // aralarında VS için 80px boşluk
             var strip = UiKit.Panel(col.transform, new Vector2(0, 1), new Vector2(1, 1), accent);
             var srt = (RectTransform)strip.transform; srt.pivot = new Vector2(0.5f, 1f); srt.sizeDelta = new Vector2(-16, 8); srt.anchoredPosition = new Vector2(0, -8);
             head = UiKit.Title(col.transform, "", 34, UiKit.Ink);
-            Place(head.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -22), new Vector2(0, 46), new Vector2(0.5f, 1f));
+            Place(head.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -22), new Vector2(-20, 46), new Vector2(0.5f, 1f));
+            UiKit.Fit(head, 22);
             score = UiKit.Title(col.transform, "0", 92, UiKit.Gold);
             Place(score.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(0, -66), new Vector2(0, 110), new Vector2(0.5f, 1f));
             result = UiKit.Label(col.transform, "", 30, UiKit.Ink, TextAnchor.MiddleCenter);
@@ -886,7 +912,8 @@ namespace BlindAttack.Game
             body = UiKit.Label(col.transform, "", 25, UiKit.Ink, TextAnchor.UpperLeft);
             body.supportRichText = true;
             body.lineSpacing = 1.1f;
-            Place(body.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(34, -230), new Vector2(-60, 290), new Vector2(0f, 1f));
+            Place(body.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(34, -230), new Vector2(-60, 266), new Vector2(0f, 1f));
+            UiKit.Fit(body, 18);
         }
 
         static string StatsBody(AttackStats s)
@@ -905,7 +932,8 @@ namespace BlindAttack.Game
         {
             roundPanel.SetActive(false);
             statsPanel.SetActive(true);
-            statsPanel.transform.SetAsLastSibling();
+            BringToFront(statsPanel.transform);
+            LayoutAchievement();
             statsPanel.transform.localScale = Vector3.one * 0.8f;
             Tween.Scale(statsPanel.transform, Vector3.one, 0.32f, Ease.OutBack);
             statsTitle.text = $"TUR {round} SONUCU";
@@ -972,8 +1000,10 @@ namespace BlindAttack.Game
             Place(head.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(116, -12), new Vector2(-130, 26));
             achName = UiKit.Label(achPopup.transform, "", 32, Color.white, TextAnchor.UpperLeft, FontStyle.Bold);
             Place(achName.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(116, -36), new Vector2(-130, 40));
+            UiKit.Fit(achName, 22);
             achDesc = UiKit.Label(achPopup.transform, "", 20, new Color(1f, 0.92f, 0.78f), TextAnchor.UpperLeft);
             Place(achDesc.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(116, -78), new Vector2(-130, 32));
+            UiKit.Fit(achDesc, 14);
             achPopup.SetActive(false);
         }
 
@@ -990,13 +1020,32 @@ namespace BlindAttack.Game
             var (n, d) = achQueue.Dequeue();
             achName.text = n; achDesc.text = d;
             achPopup.SetActive(true);
-            achPopup.transform.SetAsLastSibling();
-            var rt = (RectTransform)achPopup.transform;
+            BringToFront(achPopup.transform);
+            achT = 0f; LayoutAchievement();
             AudioManager.Play(SoundId.Achievement, 0.9f, 0f);
-            Tween.Custom(520f, -12f, 0.4f, x => { if (rt) rt.anchoredPosition = new Vector2(x, -126); }, Ease.OutBack);
+            Tween.Custom(0f, 1f, 0.4f, k => { achT = k; LayoutAchievement(); }, Ease.OutBack);
             Tween.Delay(3.4f).OnComplete(() =>
-                Tween.Custom(-12f, 520f, 0.3f, x => { if (rt) rt.anchoredPosition = new Vector2(x, -126); }, Ease.InQuad)
+                Tween.Custom(1f, 0f, 0.3f, k => { achT = k; LayoutAchievement(); }, Ease.InQuad)
                     .OnComplete(NextAchievement));
+        }
+
+        float achT; // 0 = gizli, 1 = görünür
+
+        /// <summary>Normalde sağ üstten kayar; tur sonu paneli açıksa onunla çakışmasın diye alt ortadan çıkar.</summary>
+        void LayoutAchievement()
+        {
+            if (!achPopup || !achPopup.activeSelf) return;
+            var rt = (RectTransform)achPopup.transform;
+            if (statsPanel && statsPanel.activeSelf)
+            {
+                rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0f);
+                rt.anchoredPosition = new Vector2(0, Mathf.LerpUnclamped(-140f, 30f, achT));
+            }
+            else
+            {
+                rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(1f, 1f);
+                rt.anchoredPosition = new Vector2(Mathf.LerpUnclamped(520f, -12f, achT), -126);
+            }
         }
 
         // ================= BAŞARIM LİSTESİ =================
@@ -1015,6 +1064,7 @@ namespace BlindAttack.Game
             achListBody.supportRichText = true;
             achListBody.lineSpacing = 1.05f;
             UiKit.Size(achListBody, 900, 620);
+            UiKit.Fit(achListBody, 18);
             UiKit.Size(UiKit.Button(achListBox.transform, "Geri", UiKit.Green, () => CloseAchievements()), 900, 70);
             achListBox.SetActive(false);
         }

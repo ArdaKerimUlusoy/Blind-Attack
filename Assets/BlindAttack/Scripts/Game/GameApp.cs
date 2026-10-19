@@ -43,6 +43,27 @@ namespace BlindAttack.Game
         string myName = "Oyuncu";
         readonly Queue<Action> inbox = new Queue<Action>();
 
+        /// <summary>Tam ekran durumu. Screen.fullScreen bir kare gecikmeli güncellendiği ve pencere ekran boyutundayken
+        /// yanlış değer dönebildiği için durumu kendimiz tutuyoruz.</summary>
+        public static bool IsFullscreen { get; private set; }
+
+        void ToggleFullscreen()
+        {
+            IsFullscreen = !IsFullscreen;
+            int sw = Display.main.systemWidth, sh = Display.main.systemHeight;
+            if (IsFullscreen)
+            {
+                // ekranın kendi çözünürlüğüyle kenarlıksız tam ekran
+                Screen.SetResolution(sw, sh, FullScreenMode.FullScreenWindow);
+            }
+            else
+            {
+                // pencere modu: ekranın %75'i kadar bir pencere (ekran boyutunda kalırsa tekrar tam ekrana geçiş bozuluyordu)
+                Screen.SetResolution(Mathf.RoundToInt(sw * 0.75f), Mathf.RoundToInt(sh * 0.75f), FullScreenMode.Windowed);
+            }
+            ui.SetFullscreenLabel(IsFullscreen);
+        }
+
         void Awake()
         {
             Application.runInBackground = true;
@@ -87,13 +108,8 @@ namespace BlindAttack.Game
             ui.OnResume = () => SetPause(false);
             ui.OnShakeChanged = on => { PlayerPrefs.SetInt(ShakeKey, on ? 1 : 0); PlayerPrefs.Save(); };
             ui.OnQuitGame = QuitGame;
-            ui.OnToggleFullscreen = () =>
-            {
-                bool fs = !Screen.fullScreen;
-                Screen.fullScreenMode = fs ? FullScreenMode.FullScreenWindow : FullScreenMode.Windowed;
-                Screen.fullScreen = fs;
-                ui.SetFullscreenLabel(fs);
-            };
+            IsFullscreen = Screen.fullScreenMode != FullScreenMode.Windowed;
+            ui.OnToggleFullscreen = ToggleFullscreen;
             session.CanRematch = CanRematch;
             playback.Finished += OnMenuPlaybackFinished;
             session.OnMatchFinishedReturn = () => BackToMenu("");
@@ -182,7 +198,7 @@ namespace BlindAttack.Game
         {
             bool inMatch = mode != Mode.Menu;
             string note = mode == Mode.Solo ? "Oyun duraklatıldı." : inMatch ? "Online maçta oyun durmaz, süre işlemeye devam eder." : "";
-            ui.ShowPause(open, inMatch, note, Screen.fullScreen);
+            ui.ShowPause(open, inMatch, note, IsFullscreen);
             // sadece tek kişilik modda zamanı durdur
             Time.timeScale = open && mode == Mode.Solo ? 0f : 1f;
         }
@@ -445,7 +461,7 @@ namespace BlindAttack.Game
         void BackToMenu(string status)
         {
             Time.timeScale = 1f;
-            ui.ShowPause(false, false, "", Screen.fullScreen);
+            ui.ShowPause(false, false, "", IsFullscreen);
             ResetMatch();
             mode = Mode.Menu;
             connecting = false;
