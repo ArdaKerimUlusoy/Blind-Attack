@@ -33,7 +33,13 @@ namespace BlindAttack.Game
         RoundWin,
         RoundLoss,
         VictoryFanfare,
-        AmbientMusic
+        PortalEnter,
+        AmbientMusic,
+        EarthRumble,    // düşman yerden çıkar
+        AlertBlip,      // düşman kahramanı fark etti (!)
+        CountTick,      // tur sonu puan sayacı
+        Achievement,    // başarım açıldı
+        CinematicSwell, // saldırı açılışı
     }
 
     /// <summary>
@@ -139,14 +145,34 @@ namespace BlindAttack.Game
                     samples = GenVictoryMelody();
                     break;
                 case SoundId.AmbientMusic:
-                    samples = GenAmbientLoop();
+                    // ortaçağ halk ezgisi tarzında özgün döngü (bkz. MusicSynth.cs)
+                    samples = MusicSynth.FolkLoop(SampleRate);
+                    break;
+                case SoundId.PortalEnter:
+                    samples = MusicSynth.PortalEnter(SampleRate);
+                    break;
+                case SoundId.EarthRumble:
+                    samples = GenRumble(0.45f);
+                    break;
+                case SoundId.AlertBlip:
+                    samples = GenAlert();
+                    break;
+                case SoundId.CountTick:
+                    samples = GenCountTick();
+                    break;
+                case SoundId.Achievement:
+                    samples = GenAchievement();
+                    break;
+                case SoundId.CinematicSwell:
+                    samples = GenSwell(2.2f);
                     break;
                 default:
                     samples = GenClick();
                     break;
             }
 
-            SmoothEdges(samples, id == SoundId.AmbientMusic);
+            // müzik kendi döngü geçişini, portal sesi kendi bitişini yapıyor
+            if (id != SoundId.AmbientMusic && id != SoundId.PortalEnter) SmoothEdges(samples);
             var audioClip = AudioClip.Create(id.ToString(), samples.Length, 1, SampleRate, false);
             audioClip.SetData(samples, 0);
             return audioClip;
@@ -627,84 +653,112 @@ namespace BlindAttack.Game
             return s;
         }
 
-        static float[] GenAmbientLoop()
+        // ---- yeni efektler ----
+        /// <summary>Toprağın altından gelen boğuk gürleme + çakıl tıkırtıları.</summary>
+        static float[] GenRumble(float dur)
         {
-            float dur = 8.0f;
             int n = (int)(SampleRate * dur);
             var s = new float[n];
-            var rng = new System.Random(1337);
+            var rng = new System.Random(777);
             var brown = new BrownNoiseGen();
-
-            float filter = 0f;
+            float lp = 0f;
             for (int i = 0; i < n; i++)
             {
-                float noise = brown.Next(rng);
-                filter += 0.04f * (noise - filter);
-                s[i] = filter * 0.018f;
+                float k = (float)i / n;
+                float env = Mathf.Clamp01(k / 0.08f) * Mathf.Exp(-k * 4f);
+                lp += 0.05f * (brown.Next(rng) - lp);
+                float sub = Mathf.Sin(2f * Mathf.PI * Mathf.Lerp(58f, 38f, k) * i / SampleRate);
+                float grit = rng.NextDouble() < 0.004 * (1f - k) ? (float)(rng.NextDouble() * 2 - 1) * 0.6f : 0f;
+                s[i] = (lp * 1.4f + sub * 0.5f) * env * 0.8f + grit;
             }
+            return s;
+        }
 
-            var notes = new (float f, float start, float len, float vol)[]
-            {
-                // Bar 0: Am
-                (110.00f, 0.00f, 1.85f, 0.18f),
-                (220.00f, 0.00f, 0.95f, 0.16f),
-                (261.63f, 0.45f, 0.90f, 0.14f),
-                (329.63f, 0.90f, 0.90f, 0.15f),
-                (440.00f, 1.35f, 0.75f, 0.13f),
-
-                // Bar 1: F
-                (87.31f,  2.00f, 1.85f, 0.18f),
-                (174.61f, 2.00f, 0.95f, 0.15f),
-                (220.00f, 2.45f, 0.90f, 0.14f),
-                (261.63f, 2.90f, 0.90f, 0.15f),
-                (329.63f, 3.35f, 0.75f, 0.13f),
-
-                // Bar 2: C
-                (130.81f, 4.00f, 1.85f, 0.18f),
-                (196.00f, 4.00f, 0.95f, 0.15f),
-                (261.63f, 4.45f, 0.90f, 0.15f),
-                (329.63f, 4.90f, 0.90f, 0.15f),
-                (392.00f, 5.35f, 0.75f, 0.14f),
-
-                // Bar 3: G
-                (98.00f,  6.00f, 1.85f, 0.18f),
-                (146.83f, 6.00f, 0.95f, 0.14f),
-                (196.00f, 6.45f, 0.90f, 0.14f),
-                (246.94f, 6.90f, 0.90f, 0.15f),
-                (293.66f, 7.35f, 0.70f, 0.13f)
-            };
-
-            foreach (var note in notes)
-            {
-                int startSample = (int)(note.start * SampleRate);
-                int noteSamples = (int)(note.len * SampleRate);
-                float phase = 0f;
-                for (int i = 0; i < noteSamples; i++)
-                {
-                    int idx = (startSample + i) % n;
-                    float t = (float)i / SampleRate;
-                    float att = t < 0.012f ? 0.5f * (1f - Mathf.Cos(t / 0.012f * Mathf.PI)) : 1f;
-                    float env = att * Mathf.Exp(-t * 2.2f);
-                    phase += 2f * Mathf.PI * note.f / SampleRate;
-                    float acoustic = Mathf.Sin(phase) * 0.70f
-                                   + Mathf.Sin(phase * 2f) * 0.22f
-                                   + Mathf.Sin(phase * 3f) * 0.08f;
-                    s[idx] += acoustic * env * note.vol;
-                }
-            }
-
-            float padPhase = 0f;
+        /// <summary>Kısa, yükselen iki notalı "fark ettim!" sesi.</summary>
+        static float[] GenAlert()
+        {
+            int n = (int)(SampleRate * 0.2f);
+            var s = new float[n];
             for (int i = 0; i < n; i++)
             {
                 float t = (float)i / SampleRate;
-                int bar = (int)(t / 2.0f) % 4;
-                float chordRoot = bar == 0 ? 220f : bar == 1 ? 174.61f : bar == 2 ? 130.81f : 196f;
-                padPhase += 2f * Mathf.PI * (chordRoot * 0.5f) / SampleRate;
-                float barT = (t % 2.0f) / 2.0f;
-                float padEnv = Mathf.Sin(barT * Mathf.PI);
-                s[i] += Mathf.Sin(padPhase) * padEnv * 0.045f;
+                float f = t < 0.07f ? 880f : 1320f;
+                float lt = t < 0.07f ? t : t - 0.07f;
+                float env = Mathf.Clamp01(lt / 0.003f) * Mathf.Exp(-lt * 22f);
+                // hafif kare dalga: çizgi film tınısı
+                float ph = 2f * Mathf.PI * f * t;
+                s[i] = (Mathf.Sin(ph) * 0.6f + Mathf.Sin(ph * 3f) * 0.15f) * env * 0.5f;
             }
+            return s;
+        }
 
+        /// <summary>Sayaç tıkı: yumuşak tahta tokmak.</summary>
+        static float[] GenCountTick()
+        {
+            int n = (int)(SampleRate * 0.05f);
+            var s = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / SampleRate;
+                float env = Mathf.Clamp01(t / 0.002f) * Mathf.Exp(-t * 90f);
+                s[i] = (Mathf.Sin(2f * Mathf.PI * 1180f * t) * 0.5f + Mathf.Sin(2f * Mathf.PI * 2360f * t) * 0.15f) * env * 0.45f;
+            }
+            return s;
+        }
+
+        /// <summary>Başarım: çan arpejı (pentatonik), hafif yankılı.</summary>
+        static float[] GenAchievement()
+        {
+            float dur = 1.4f;
+            int n = (int)(SampleRate * dur);
+            var s = new float[n];
+            float[] notes = { 784f, 988f, 1175f, 1568f };
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / SampleRate;
+                float sum = 0f;
+                for (int k = 0; k < notes.Length; k++)
+                {
+                    float st = k * 0.09f;
+                    if (t < st) continue;
+                    float nt = t - st;
+                    float env = Mathf.Clamp01(nt / 0.003f) * Mathf.Exp(-nt * 3.2f);
+                    // çan: temel + uyumsuz üst kısmi
+                    sum += (Mathf.Sin(2f * Mathf.PI * notes[k] * nt) + Mathf.Sin(2f * Mathf.PI * notes[k] * 2.76f * nt) * 0.25f) * env;
+                }
+                s[i] = sum * 0.15f;
+            }
+            // basit yankı
+            int d = (int)(SampleRate * 0.13f);
+            for (int i = d; i < n; i++) s[i] += s[i - d] * 0.3f;
+            return s;
+        }
+
+        /// <summary>Saldırı açılışı: yavaşça kabaran davul gürlemesi ve boğuk korno.</summary>
+        static float[] GenSwell(float dur)
+        {
+            int n = (int)(SampleRate * dur);
+            var s = new float[n];
+            var rng = new System.Random(4242);
+            var brown = new BrownNoiseGen();
+            float lp = 0f;
+            for (int i = 0; i < n; i++)
+            {
+                float t = (float)i / SampleRate;
+                float k = (float)i / n;
+                float swell = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(k / 0.75f)) * Mathf.Clamp01((1f - k) / 0.12f);
+                lp += 0.03f * (brown.Next(rng) - lp);
+                // timpani benzeri tremolo
+                float roll = lp * (0.7f + 0.3f * Mathf.Sin(2f * Mathf.PI * 14f * t));
+                // korno: kök + beşli, yumuşak
+                float horn = 0f;
+                foreach (var f in new[] { 110f, 165f, 220f })
+                {
+                    float ph = 2f * Mathf.PI * f * t;
+                    horn += Mathf.Sin(ph + 0.3f * Mathf.Sin(ph * 0.5f)) / f * 110f;
+                }
+                s[i] = (roll * 1.6f + horn * 0.18f * Mathf.Clamp01((k - 0.3f) * 2f)) * swell * 0.55f;
+            }
             return s;
         }
     }

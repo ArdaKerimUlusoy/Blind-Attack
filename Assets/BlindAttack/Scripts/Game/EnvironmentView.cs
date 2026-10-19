@@ -107,13 +107,92 @@ namespace BlindAttack.Game
             for (int r = 0; r < 5; r++)
                 Gen.MeshObj(village, "Tarla", MeshGen.Blob(r), Art.Lit(r % 2 == 0 ? new Color(0.85f, 0.75f, 0.35f) : new Color(0.65f, 0.72f, 0.30f)), vPos + new Vector3(-6.5f + r * 1.1f, 0.0f, 6.5f), new Vector3(0.9f, 0.18f, 4f));
 
+            // çit ve saman balyaları
+            var fence = Gen.Group(village, "Çit");
+            var fWood = Art.Lit(Art.Wood, Art.BarkTex);
+            var fieldMin = vPos + new Vector3(-7.3f, 0, 4.2f); var fieldMax = vPos + new Vector3(-1.4f, 0, 8.8f);
+            void FenceLine(Vector3 a, Vector3 b)
+            {
+                int posts = Mathf.Max(2, Mathf.RoundToInt(Vector3.Distance(a, b) / 0.9f));
+                for (int k = 0; k <= posts; k++)
+                    Visuals.Part(PrimitiveType.Cube, fence, Vector3.Lerp(a, b, k / (float)posts) + Vector3.up * 0.25f, new Vector3(0.08f, 0.5f, 0.08f), fWood);
+                var mid = (a + b) / 2f; var dir = b - a;
+                float yaw = Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg;
+                Visuals.Part(PrimitiveType.Cube, fence, mid + Vector3.up * 0.38f, new Vector3(0.04f, 0.06f, dir.magnitude), fWood, new Vector3(0, yaw, 0));
+                Visuals.Part(PrimitiveType.Cube, fence, mid + Vector3.up * 0.2f, new Vector3(0.04f, 0.06f, dir.magnitude), fWood, new Vector3(0, yaw, 0));
+            }
+            FenceLine(fieldMin, new Vector3(fieldMax.x, 0, fieldMin.z));
+            FenceLine(new Vector3(fieldMax.x, 0, fieldMin.z), fieldMax);
+            FenceLine(fieldMax, new Vector3(fieldMin.x, 0, fieldMax.z));
+            FenceLine(new Vector3(fieldMin.x, 0, fieldMax.z), fieldMin);
+            var hay = Art.Lit(Color.white, Art.ThatchTex);
+            for (int k = 0; k < 4; k++)
+                Gen.MeshObj(village, "Saman Balyası", MeshGen.Cylinder(10, 0.5f, 0.5f), hay, vPos + new Vector3(-1f + k * 0.9f, 0.35f, 9.6f + (k % 2) * 0.5f), new Vector3(0.7f, 0.6f, 0.7f), new Vector3(90, R() * 60f, 0));
+
+            // yel değirmeni
+            var mill = Gen.Group(village, "Yel Değirmeni");
+            mill.localPosition = vPos + new Vector3(6.8f, 0, 1.5f);
+            mill.localRotation = Quaternion.Euler(0, 225, 0); // kanatlar haritaya/kameraya baksın
+            Gen.MeshObj(mill, "Taban", MeshGen.Cylinder(8, 0.5f, 0.36f), Art.Lit(Color.white, Art.PlasterTex), Vector3.zero, new Vector3(1.8f, 2.6f, 1.8f));
+            Gen.MeshObj(mill, "Taş Etek", MeshGen.Cylinder(8, 0.5f, 0.5f), Art.Lit(Color.white, Art.BrickTex), Vector3.zero, new Vector3(1.9f, 0.5f, 1.9f));
+            Gen.MeshObj(mill, "Başlık", MeshGen.Cone(8), Art.Lit(Color.white, Art.ThatchTex), new Vector3(0, 2.55f, 0), new Vector3(1.6f, 1.1f, 1.6f));
+            Visuals.Part(PrimitiveType.Cube, mill, new Vector3(0, 0.45f, 0.9f), new Vector3(0.4f, 0.8f, 0.05f), Art.Lit(new Color(0.42f, 0.26f, 0.15f), Art.WoodTex));
+            var rotor = Gen.Group(mill, "Kanatlar");
+            rotor.localPosition = new Vector3(0, 2.6f, 0.85f);
+            Visuals.Part(PrimitiveType.Sphere, rotor, Vector3.zero, Vector3.one * 0.25f, fWood);
+            var sail = Art.Lit(new Color(0.95f, 0.92f, 0.85f), Art.ClothTex);
+            for (int k = 0; k < 4; k++)
+            {
+                var arm = Gen.Group(rotor, "Kanat");
+                arm.localRotation = Quaternion.Euler(0, 0, k * 90f);
+                Visuals.Part(PrimitiveType.Cube, arm, new Vector3(0, 1.0f, 0.05f), new Vector3(0.07f, 2.0f, 0.05f), fWood);
+                Visuals.Part(PrimitiveType.Cube, arm, new Vector3(0.18f, 1.15f, 0.07f), new Vector3(0.32f, 1.5f, 0.02f), sail);
+            }
+            rotor.gameObject.AddComponent<Rotator>().Speed = 28f;
+
+            // ---- tepede uzak kale ----
+            var castlePos = new Vector3(playArea.x + 17f, 0, playArea.y + 17f);
+            bool InCastle(Vector3 p) => (p - castlePos).magnitude < 11f;
+            var castle = Gen.Group(generated, "Uzak Kale");
+            castle.localPosition = castlePos;
+            castle.localRotation = Quaternion.Euler(0, 225, 0);
+            Gen.MeshObj(castle, "Tepe", MeshGen.Blob(5), Art.Lit(new Color(0.40f, 0.58f, 0.30f)), Vector3.zero, new Vector3(18f, 4.2f, 16f));
+            Gen.MeshObj(castle, "Kayalık", MeshGen.Rock(3), Art.Lit(Art.Stone, Art.StoneTex), new Vector3(1.5f, 0.6f, -3.5f), new Vector3(5f, 2.5f, 3f));
+            var cBase = Gen.Group(castle, "Kale");
+            cBase.localPosition = new Vector3(0, 1.75f, 0);
+            var cBrick = Art.Lit(Color.white, Art.BrickTex);
+            const float half = 2.6f;
+            for (int k = 0; k < 4; k++)
+            {
+                var side = Gen.Group(cBase, "Sur");
+                side.localRotation = Quaternion.Euler(0, k * 90f, 0);
+                Visuals.Part(PrimitiveType.Cube, side, new Vector3(0, 0.7f, half), new Vector3(half * 2f, 1.4f, 0.45f), cBrick);
+                for (int m = -3; m <= 3; m++)
+                    Visuals.Part(PrimitiveType.Cube, side, new Vector3(m * 0.7f, 1.55f, half), new Vector3(0.35f, 0.3f, 0.45f), cBrick);
+                var tw = Gen.Group(side, "Köşe Kulesi");
+                tw.localPosition = new Vector3(half, 0, half);
+                MapView.Tower(tw, 0.8f, k % 2 == 0 ? 0.7f : 0.2f, 2.2f);
+            }
+            var keep = Gen.Group(cBase, "İç Kale");
+            Visuals.Part(PrimitiveType.Cube, keep, new Vector3(0, 1.9f, 0), new Vector3(2.2f, 3.8f, 2.2f), cBrick);
+            for (int m = 0; m < 4; m++)
+            {
+                var q = Quaternion.Euler(0, m * 90f, 0);
+                for (int n2 = -1; n2 <= 1; n2++)
+                    Visuals.Part(PrimitiveType.Cube, keep, q * new Vector3(n2 * 0.7f, 3.95f, 1.0f), new Vector3(0.35f, 0.3f, 0.25f), cBrick, new Vector3(0, m * 90f, 0));
+            }
+            var keepTower = Gen.Group(keep, "Gözetleme Kulesi");
+            keepTower.localPosition = new Vector3(0.5f, 3.8f, 0.5f);
+            MapView.Tower(keepTower, 0.9f, 0.8f, 1.6f);
+            Visuals.Part(PrimitiveType.Cube, cBase, new Vector3(0, 0.45f, half + 0.24f), new Vector3(0.9f, 0.9f, 0.05f), Art.Lit(new Color(0.32f, 0.2f, 0.12f), Art.WoodTex));
+
             // ---- orman ----
             var forest = Gen.Group(generated, "Orman");
             int trees = 0;
             for (int i = 0; i < 3000 && trees < 420; i++)
             {
                 var p = center + new Vector3((R() - 0.5f) * worldSize * 0.9f, 0, (R() - 0.5f) * worldSize * 0.9f);
-                if (!Outside(p, 0.6f) || InLake(p) || InVillage(p)) continue;
+                if (!Outside(p, 0.6f) || InLake(p) || InVillage(p) || InCastle(p)) continue;
                 float d = EdgeDist(p);
                 // haritaya yakın yerlerde sık, uzakta seyrek orman; arada açıklıklar
                 float density = d < 6f ? 0.9f : d < 14f ? 0.55f : 0.25f;
@@ -130,7 +209,7 @@ namespace BlindAttack.Game
                 float a = i / 16f * Mathf.PI * 2f + R() * 0.3f;
                 float dist = Mathf.Max(playArea.x, playArea.y) * 0.5f + 26f + R() * 14f;
                 var p = center + new Vector3(Mathf.Cos(a) * dist, 0, Mathf.Sin(a) * dist * 0.85f);
-                if (InLake(p)) continue;
+                if (InLake(p) || InCastle(p)) continue;
                 float s = 10f + R() * 10f;
                 var hillCol = hostile ? new Color(0.68f, 0.40f, 0.26f) : new Color(0.42f, 0.62f, 0.32f);
                 Gen.MeshObj(hills, "Tepe", MeshGen.Blob(i % 6), Art.Lit(Art.Vary(hillCol, R(), 0.15f)), p, new Vector3(s, s * (0.35f + R() * 0.25f), s * 0.9f));
@@ -141,7 +220,7 @@ namespace BlindAttack.Game
             for (int i = 0; i < 160; i++)
             {
                 var p = center + new Vector3((R() - 0.5f) * worldSize * 0.7f, 0, (R() - 0.5f) * worldSize * 0.7f);
-                if (!Outside(p, 1f) || InLake(p) || InVillage(p)) continue;
+                if (!Outside(p, 1f) || InLake(p) || InVillage(p) || InCastle(p)) continue;
                 if (R() < 0.4f)
                     Gen.MeshObj(deco, "Kaya", MeshGen.Rock(i % 8), Art.Lit(Art.Vary(new Color(0.62f, 0.62f, 0.62f), R(), 0.12f), Art.StoneTex), p + Vector3.up * 0.1f, Vector3.one * (0.4f + R() * 0.9f), new Vector3(0, R() * 360, 0));
                 else
@@ -159,5 +238,12 @@ namespace BlindAttack.Game
             MeshGen.CombineChildren(hills);
             Gen.MarkGenerated(generated.gameObject);
         }
+    }
+
+    /// <summary>Yel değirmeni kanatlarını döndürür.</summary>
+    public class Rotator : MonoBehaviour
+    {
+        public float Speed = 30f;
+        void Update() => transform.Rotate(0, 0, Speed * Time.deltaTime, Space.Self);
     }
 }

@@ -30,7 +30,7 @@ namespace BlindAttack.Match
     public class MatchHost
     {
         public const float Grace = 3f;          // istemci gecikmesi payı
-        public const float RoundEndSeconds = 6f;
+        public const float RoundEndSeconds = 10f;   // tur sonu istatistik ekranı
 
         public Action<string> Broadcast;        // tüm oyunculara (yerel + uzak) mesaj
         public HostState State { get; private set; } = HostState.Idle;

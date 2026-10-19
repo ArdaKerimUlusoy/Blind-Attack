@@ -6,17 +6,26 @@ namespace BlindAttack.Core
     public static class MatchRules
     {
         public const int Rounds = 3;
-        public const int DefenseBudget = 28;
+        public const int DefenseBudget = 36;
         public const int SupplyBudget = 14;
         public const float DefensePhaseSeconds = 50f;
         public const float SupplyPhaseSeconds = 45f;
         /// <summary>Savunma birimleri çıkışa en az bu kadar adım uzakta olmalı (kapıyı tamamen kapatmasınlar).</summary>
-        public const int MinDefenseStepsFromExit = 4;
+        public const int MinDefenseStepsFromExit = 6;
         /// <summary>Kutular (güçlendirmeler) kahramana en az bu kadar ızgara adımı uzakta olmalı (hemen başlangıçta kümelenmesinler).</summary>
         public const int MinBuffDistanceToHero = 3;
+        /// <summary>Bir bölgeye (merkez hücre etrafında DefenseAreaRadius kare) en fazla bu kadar savunma birimi konabilir (tek noktaya yığmayı engeller).</summary>
+        public const int MaxDefendersInArea = 3;
+        public const int DefenseAreaRadius = 2;
         public const int MaxDefenders = 18;
         public const int MaxSupplies = 8;   // kutular (bayraklar hariç)
         public const int MaxFlags = 3;
+        /// <summary>Aynı kutudan en fazla bu kadar konabilir (tek tip yığmayı engeller).</summary>
+        public const int MaxSameCrate = 2;
+        /// <summary>Kahramana aynı anda en fazla bu kadar düşman saldırabilir; diğerleri sıra bekler (yığmayı zayıflatır).</summary>
+        public const int MaxSimultaneousAttackers = 2;
+        /// <summary>Çıkışa ulaşamayan kahramanın alabileceği en yüksek puan (ilerlemeye göre). Ulaşmak = 100 + kalan can.</summary>
+        public const int MaxProgressScore = 60;
 
         public static int Budget(bool defense) => defense ? DefenseBudget : SupplyBudget;
 
@@ -47,6 +56,13 @@ namespace BlindAttack.Core
             {
                 if (map.StepsToExit(cell) < MinDefenseStepsFromExit) return "Çıkışa çok yakın";
                 if (cell == map.Start) return "Başlangıca konamaz";
+                int near = 0;
+                foreach (var p in existing)
+                {
+                    if (!Items.Get(p.Type).IsDefense) continue;
+                    if (System.Math.Abs(p.Cell.X - cell.X) <= DefenseAreaRadius && System.Math.Abs(p.Cell.Y - cell.Y) <= DefenseAreaRadius && p.Cell != cell) near++;
+                }
+                if (near >= MaxDefendersInArea) return $"Bu bölge dolu (yakında en fazla {MaxDefendersInArea} birim)";
             }
             else if (type != ItemType.Hero)
             {
@@ -74,6 +90,12 @@ namespace BlindAttack.Core
             if (def.IsDefense && defenders >= MaxDefenders) return "Sınıra ulaştın";
             if (type == ItemType.Flag && flags >= MaxFlags) return $"En fazla {MaxFlags} bayrak";
             if (!def.IsDefense && type != ItemType.Flag && type != ItemType.Hero && crates >= MaxSupplies) return "Sınıra ulaştın";
+            if (!def.IsDefense && type != ItemType.Flag && type != ItemType.Hero)
+            {
+                int same = 0;
+                foreach (var p in existing) if (p.Type == type) same++;
+                if (same >= MaxSameCrate) return $"Bu kutudan en fazla {MaxSameCrate} tane";
+            }
             return null;
         }
 

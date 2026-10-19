@@ -49,18 +49,18 @@ namespace BlindAttack.Core
             Add(new ItemDef { Type = ItemType.Goblin, Name = "Goblin", Description = "Hızlı, ucuz yakın dövüşçü", Cost = 2, IsDefense = true,
                 Hp = 35, Damage = 6, AttackInterval = 0.8f, Range = 1.1f, Aggro = 3.5f, Speed = 2.6f });
             Add(new ItemDef { Type = ItemType.Archer, Name = "Okçu", Description = "Yerinden kıpırdamaz, uzaktan vurur", Cost = 3, IsDefense = true,
-                Hp = 22, Damage = 7, AttackInterval = 1.2f, Range = 4.5f, Aggro = 5f, Speed = 0f, Ranged = true });
-            Add(new ItemDef { Type = ItemType.Ogre, Name = "Dev", Description = "Yavaş ama çok sert", Cost = 5, IsDefense = true,
-                Hp = 110, Damage = 16, AttackInterval = 1.6f, Range = 1.3f, Aggro = 3f, Speed = 1.6f });
-            Add(new ItemDef { Type = ItemType.SpikeTrap, Name = "Diken Tuzağı", Description = "Gizli. Üstüne basana 22 hasar", Cost = 1, IsDefense = true,
-                Damage = 22 });
+                Hp = 30, Damage = 7, AttackInterval = 1.2f, Range = 4.5f, Aggro = 5f, Speed = 0f, Ranged = true });
+            Add(new ItemDef { Type = ItemType.Ogre, Name = "Dev", Description = "Yavaş ama çok sert", Cost = 7, IsDefense = true,
+                Hp = 95, Damage = 16, AttackInterval = 1.8f, Range = 1.3f, Aggro = 3f, Speed = 1.6f });
+            Add(new ItemDef { Type = ItemType.SpikeTrap, Name = "Diken Tuzağı", Description = "Gizli. Üstüne basana 18 hasar", Cost = 1, IsDefense = true,
+                Damage = 18 });
 
             Add(new ItemDef { Type = ItemType.Hero, Name = "Kahraman", Description = "Başlangıç noktası. Mavi bölgede istediğin yere koy", Cost = 0 });
-            Add(new ItemDef { Type = ItemType.SwordCrate, Name = "Kılıç", Description = "Kılıç alev alır: +6 saldırı gücü", Cost = 3 });
-            Add(new ItemDef { Type = ItemType.ArmorCrate, Name = "Zırh", Description = "Zırh giyer: alınan hasar %30 azalır", Cost = 3 });
-            Add(new ItemDef { Type = ItemType.Potion, Name = "İksir", Description = "45 can doldurur", Cost = 2 });
-            Add(new ItemDef { Type = ItemType.SpeedBoots, Name = "Çizme", Description = "Hız çizmesi: %30 daha hızlı yürür ve vurur", Cost = 2 });
-            Add(new ItemDef { Type = ItemType.Bomb, Name = "Bomba", Description = "Alınca patlar: 2.5 kare içindeki düşmanlara 40 hasar", Cost = 3 });
+            Add(new ItemDef { Type = ItemType.SwordCrate, Name = "Kılıç", Description = "Kılıç alev alır: +3 saldırı gücü (en fazla 2)", Cost = 3 });
+            Add(new ItemDef { Type = ItemType.ArmorCrate, Name = "Zırh", Description = "Zırh giyer: alınan hasar %15 azalır (en fazla 2)", Cost = 3 });
+            Add(new ItemDef { Type = ItemType.Potion, Name = "İksir", Description = "20 can doldurur (en fazla 2)", Cost = 2 });
+            Add(new ItemDef { Type = ItemType.SpeedBoots, Name = "Çizme", Description = "Hız çizmesi: %20 daha hızlı yürür ve vurur (en fazla 2)", Cost = 2 });
+            Add(new ItemDef { Type = ItemType.Bomb, Name = "Bomba", Description = "Alınca patlar: 2.5 kare içindeki düşmanlara 60 hasar (en fazla 2)", Cost = 3 });
             Add(new ItemDef { Type = ItemType.Flag, Name = "Bayrak", Description = "Ücretsiz rota noktası: kahraman buradan da geçer", Cost = 0 });
         }
 

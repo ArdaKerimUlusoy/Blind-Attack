@@ -164,6 +164,58 @@ namespace BlindAttack.Game
             return Build(v, t, true, new Vector3(0, 0.33f, 0));
         });
 
+        /// <summary>Yuvarlak kule gövdesi: yarıçap 0.5, yükseklik 1, taban y=0, tuğla dokusu için UV'li.</summary>
+        public static Mesh Tower(int segments = 10) => Cached("Tower" + segments, () =>
+        {
+            var v = new List<Vector3>(); var uv = new List<Vector2>(); var t = new List<int>();
+            for (int i = 0; i <= segments; i++)
+            {
+                float a = i / (float)segments * Mathf.PI * 2f;
+                var p = new Vector3(Mathf.Cos(a) * 0.5f, 0, Mathf.Sin(a) * 0.5f);
+                v.Add(p); v.Add(p + Vector3.up);
+                float u = i / (float)segments * 3f;
+                uv.Add(new Vector2(u, 0)); uv.Add(new Vector2(u, 1.5f));
+            }
+            for (int i = 0; i < segments; i++)
+            {
+                int a0 = i * 2, a1 = a0 + 1, b0 = a0 + 2, b1 = a0 + 3;
+                t.AddRange(new[] { a0, a1, b0, b0, a1, b1 });
+            }
+            int c = v.Count; v.Add(Vector3.up); uv.Add(new Vector2(0.5f, 0.5f));
+            for (int i = 0; i < segments; i++) t.AddRange(new[] { i * 2 + 1, c, i * 2 + 3 });
+            FixWinding(v, t, new Vector3(0, 0.5f, 0));
+            var m = new Mesh();
+            m.SetVertices(v); m.SetUVs(0, uv); m.SetTriangles(t, 0);
+            m.RecalculateNormals(); m.RecalculateBounds();
+            return m;
+        });
+
+        /// <summary>Yarım silindir (sandık kapağı): uzunluk x=1, yarıçap 0.5, düz yüz aşağıda (y=0).</summary>
+        public static Mesh HalfCylinder(int segments = 8) => Cached("HalfCyl" + segments, () =>
+        {
+            var v = new List<Vector3>(); var t = new List<int>();
+            for (int i = 0; i <= segments; i++)
+            {
+                float a = i / (float)segments * Mathf.PI;
+                float z = Mathf.Cos(a) * 0.5f, y = Mathf.Sin(a) * 0.5f;
+                v.Add(new Vector3(-0.5f, y, z)); v.Add(new Vector3(0.5f, y, z));
+            }
+            for (int i = 0; i < segments; i++)
+            {
+                int a0 = i * 2, a1 = a0 + 1, b0 = a0 + 2, b1 = a0 + 3;
+                t.AddRange(new[] { a0, b0, a1, a1, b0, b1 });
+            }
+            // yan kapaklar
+            int cl = v.Count; v.Add(new Vector3(-0.5f, 0, 0));
+            int cr = v.Count; v.Add(new Vector3(0.5f, 0, 0));
+            for (int i = 0; i < segments; i++)
+            {
+                t.AddRange(new[] { cl, i * 2, i * 2 + 2 });
+                t.AddRange(new[] { cr, i * 2 + 3, i * 2 + 1 });
+            }
+            return Build(v, t, true, new Vector3(0, 0.2f, 0));
+        });
+
         /// <summary>Düz daire (y=0, yukarı bakar), yarıçap 0.5.</summary>
         public static Mesh Disc(int segments = 16) => Cached("Disc" + segments, () =>
         {

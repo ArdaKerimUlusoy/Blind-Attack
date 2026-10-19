@@ -223,6 +223,83 @@ namespace BlindAttack.Game
                 }
         }
 
+        // ---------------- Ortaçağ dokuları ----------------
+        static Texture2D brickTex, roofTex, thatchTex, plasterTex, clothTex;
+
+        /// <summary>Elle boyanmış gibi duran taş tuğla örgüsü (kale surları, kuleler).</summary>
+        public static Texture2D BrickTex => brickTex ? brickTex : (brickTex = MakeBricks(128, 4, 3, new Color(0.72f, 0.68f, 0.60f), new Color(0.50f, 0.46f, 0.42f), 61));
+
+        /// <summary>Kiremit sıraları (kırmızı/kahve çatılar).</summary>
+        public static Texture2D RoofTex => roofTex ? roofTex : (roofTex = MakeShingles(128, 6, new Color(0.80f, 0.40f, 0.28f), new Color(0.50f, 0.22f, 0.16f), 71));
+
+        /// <summary>Saman çatı: uzun, sarımsı fırça darbeleri.</summary>
+        public static Texture2D ThatchTex => thatchTex ? thatchTex : (thatchTex = Painted(128, new Color(0.82f, 0.68f, 0.40f), new Color(0.55f, 0.42f, 0.22f), new Color(0.95f, 0.84f, 0.55f), 81, 420, 3f, stretchY: 6f));
+
+        /// <summary>Sıvalı duvar.</summary>
+        public static Texture2D PlasterTex => plasterTex ? plasterTex : (plasterTex = Painted(64, new Color(0.96f, 0.91f, 0.80f), new Color(0.82f, 0.76f, 0.64f), Color.white, 91, 120, 6f));
+
+        /// <summary>Kumaş (pelerin, sancak, tabard).</summary>
+        public static Texture2D ClothTex => clothTex ? clothTex : (clothTex = Painted(64, new Color(0.9f, 0.9f, 0.9f), new Color(0.72f, 0.72f, 0.72f), Color.white, 97, 80, 2.5f, stretchY: 5f));
+
+        static Texture2D MakeBricks(int size, int rows, int cols, Color stone, Color mortar, int seed)
+        {
+            var px = new Color[size * size];
+            var rng = new System.Random(seed);
+            int rowH = size / rows, colW = size / cols;
+            var shade = new float[rows * 2 * cols * 2];
+            for (int i = 0; i < shade.Length; i++) shade[i] = (float)rng.NextDouble();
+            for (int y = 0; y < size; y++)
+            {
+                int r = y / rowH;
+                int off = (r % 2) * colW / 2;
+                for (int x = 0; x < size; x++)
+                {
+                    int xx = (x + off) % size;
+                    int c = xx / colW;
+                    int lx = xx % colW, ly = y % rowH;
+                    float edge = Mathf.Min(Mathf.Min(lx, colW - 1 - lx), Mathf.Min(ly, rowH - 1 - ly));
+                    float s = shade[(r * cols + c) % shade.Length];
+                    float n = Noise.Fbm(x / (float)size * 4f, y / (float)size * 4f, seed, true, 3);
+                    var col = Color.Lerp(stone * (0.82f + s * 0.3f), stone * 1.1f, n * 0.6f);
+                    // tuğla kenarları hafif yuvarlak ve gölgeli
+                    col = Color.Lerp(mortar, col, Mathf.Clamp01((edge - 1f) / 3f));
+                    if (ly < 4 && edge > 1f) col = Color.Lerp(col, Color.white, 0.12f); // üst kenar ışığı
+                    col.a = 1f;
+                    px[y * size + x] = col;
+                }
+            }
+            for (int i = 0; i < 160; i++)
+                Dab(px, size, size, (float)rng.NextDouble() * size, (float)rng.NextDouble() * size, 2f + (float)rng.NextDouble() * 4f, 1.5f + (float)rng.NextDouble() * 2f,
+                    rng.NextDouble() < 0.5 ? new Color(0.45f, 0.55f, 0.32f) : Color.white, 0.12f, true);
+            return MakeTex(px, size, size, TextureWrapMode.Repeat);
+        }
+
+        static Texture2D MakeShingles(int size, int rows, Color tile, Color dark, int seed)
+        {
+            var px = new Color[size * size];
+            var rng = new System.Random(seed);
+            int rowH = size / rows;
+            for (int y = 0; y < size; y++)
+            {
+                int r = y / rowH;
+                float ly = (y % rowH) / (float)rowH;
+                for (int x = 0; x < size; x++)
+                {
+                    float w = size / 8f;
+                    float lx = ((x + (r % 2) * w / 2f) % w) / w;
+                    // yuvarlak uçlu kiremitler: alt kenarda yay şeklinde koyuluk
+                    float arc = 1f - Mathf.Abs(lx - 0.5f) * 2f;
+                    float bottom = ly < 0.18f + (1f - arc * arc) * 0.25f ? 1f : 0f;
+                    float n = Noise.Fbm(x / (float)size * 4f, y / (float)size * 4f, seed, true, 3);
+                    var col = Color.Lerp(tile * (0.85f + n * 0.3f), dark, bottom * 0.65f);
+                    col = Color.Lerp(col, col * 1.15f, ly * 0.3f);
+                    col.a = 1f;
+                    px[y * size + x] = col;
+                }
+            }
+            return MakeTex(px, size, size, TextureWrapMode.Repeat);
+        }
+
         // ---------------- UI sprite'ları ----------------
         static Sprite roundSprite, circleSprite;
 

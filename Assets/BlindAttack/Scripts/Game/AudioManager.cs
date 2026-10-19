@@ -12,9 +12,41 @@ namespace BlindAttack.Game
         int poolIndex;
         AudioSource musicSource;
 
-        [Range(0f, 1f)] public float masterVolume = 1f;
-        [Range(0f, 1f)] public float sfxVolume = 0.85f;
-        [Range(0f, 1f)] public float musicVolume = 0.35f;
+        [Range(0f, 1f)] public float masterVolume = 0.8f;
+        [Range(0f, 1f)] public float sfxVolume = 0.8f;
+        [Range(0f, 1f)] public float musicVolume = 0.25f;
+
+        // ---- kayıtlı ses ayarları (Ayarlar ekranı) ----
+        const string MasterKey = "BlindAttack.Volume.Master", MusicKey = "BlindAttack.Volume.Music", SfxKey = "BlindAttack.Volume.Sfx", MuteKey = "BlindAttack.Volume.Mute";
+        public bool muted;
+
+        public static float Master { get { EnsureExists(); return I.masterVolume; } set { EnsureExists(); I.masterVolume = Mathf.Clamp01(value); I.ApplyVolumes(); } }
+        public static float Music { get { EnsureExists(); return I.musicVolume; } set { EnsureExists(); I.musicVolume = Mathf.Clamp01(value); I.ApplyVolumes(); } }
+        public static float Sfx { get { EnsureExists(); return I.sfxVolume; } set { EnsureExists(); I.sfxVolume = Mathf.Clamp01(value); I.ApplyVolumes(); } }
+        public static bool Muted { get { EnsureExists(); return I.muted; } set { EnsureExists(); I.muted = value; I.ApplyVolumes(); } }
+
+        void LoadSettings()
+        {
+            masterVolume = PlayerPrefs.GetFloat(MasterKey, masterVolume);
+            musicVolume = PlayerPrefs.GetFloat(MusicKey, musicVolume);
+            sfxVolume = PlayerPrefs.GetFloat(SfxKey, sfxVolume);
+            muted = PlayerPrefs.GetInt(MuteKey, 0) == 1;
+        }
+
+        public static void SaveSettings()
+        {
+            if (I == null) return;
+            PlayerPrefs.SetFloat(MasterKey, I.masterVolume);
+            PlayerPrefs.SetFloat(MusicKey, I.musicVolume);
+            PlayerPrefs.SetFloat(SfxKey, I.sfxVolume);
+            PlayerPrefs.SetInt(MuteKey, I.muted ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        void ApplyVolumes()
+        {
+            if (musicSource != null) musicSource.volume = muted ? 0f : musicVolume * masterVolume;
+        }
 
         void Awake()
         {
@@ -25,6 +57,7 @@ namespace BlindAttack.Game
             }
             I = this;
             DontDestroyOnLoad(gameObject);
+            LoadSettings();
 
             for (int i = 0; i < PoolSize; i++)
             {
@@ -66,6 +99,7 @@ namespace BlindAttack.Game
             poolIndex = (poolIndex + 1) % sfxPool.Count;
 
             src.pitch = 1f + Random.Range(-pitchVariance, pitchVariance);
+            if (muted || sfxVolume * masterVolume <= 0.001f) return;
             src.PlayOneShot(clip, sfxVolume * masterVolume * volumeScale);
         }
 
@@ -75,7 +109,7 @@ namespace BlindAttack.Game
             var clip = ProceduralAudio.Get(SoundId.AmbientMusic);
             if (!clip) return;
             musicSource.clip = clip;
-            musicSource.volume = musicVolume * masterVolume;
+            ApplyVolumes();
             if (!musicSource.isPlaying) musicSource.Play();
         }
 

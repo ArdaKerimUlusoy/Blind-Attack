@@ -14,6 +14,7 @@ namespace BlindAttack.Core
         HeroDied,
         ReachedExit,
         Timeout,
+        HeroCleave,     // kılıç savuruşu yandaki düşmana da değdi (Index = düşman, Amount = hasar)
     }
 
     public struct SimEvent
@@ -68,16 +69,23 @@ namespace BlindAttack.Core
         public const float Dt = 0.05f;
         public const float MaxTime = 100f;
         const int FrameEvery = 2;
+        const float EngageWindow = 1.3f;
 
         // Kahraman temel değerleri
-        public const float HeroHp = 100f;
-        public const float HeroDamage = 10f;
+        public const float HeroHp = 125f;
+        public const float HeroDamage = 13f;
+        public const float PotionHeal = 20f, BombDamage = 60f;
+        /// <summary>Kılıç savuruşu ana hedefin yanındaki düşmanlara da bu oranda hasar verir (yığılmış savunmayı zayıflatır).</summary>
+        public const float HeroCleave = 0.25f, CleaveRadius = 1.6f;
+        /// <summary>Kutu etkileri: kılıç saldırıya eklenir, zırh alınan hasarı çarpar (alt sınırlı), çizme hızı çarpar.</summary>
+        public const float SwordBonus = 3f, ArmorFactor = 0.85f, ArmorMin = 0.4f, BootsFactor = 1.2f;
         const float HeroInterval = 0.7f, HeroRange = 1.2f, HeroSpeed = 3.2f, HeroEngage = 3.0f;
 
         class Enemy
         {
             public ItemDef Def; public Vec2 Pos, Home; public float Hp, Cooldown, RepathTimer;
             public bool Aggro, Alive = true; public List<Cell> Path; public int PathIdx;
+            public float LastAttack = -99f;
         }
 
         class Supply { public Placement P; public bool Taken; }
@@ -160,6 +168,14 @@ namespace BlindAttack.Core
                             target.Hp -= dmg;
                             Ev(SimEventType.HeroAttack, targetIdx, dmg, target.Pos);
                             if (target.Hp <= 0f) { target.Alive = false; Ev(SimEventType.EnemyDied, targetIdx, 0, target.Pos); }
+                            for (int k = 0; k < enemies.Count; k++)
+                            {
+                                var o = enemies[k];
+                                if (k == targetIdx || !o.Alive || Vec2.Dist(heroPos, o.Pos) > CleaveRadius) continue;
+                                o.Hp -= dmg * HeroCleave;
+                                Ev(SimEventType.HeroCleave, k, dmg * HeroCleave, o.Pos);
+                                if (o.Hp <= 0f) { o.Alive = false; Ev(SimEventType.EnemyDied, k, 0, o.Pos); }
+                            }
                         }
                     }
                     else heroPos = MoveToward(heroPos, target.Pos, step);
@@ -199,17 +215,17 @@ namespace BlindAttack.Core
                     s.Taken = true;
                     switch (s.P.Type)
                     {
-                        case ItemType.SwordCrate: dmg += 6f; break;
-                        case ItemType.ArmorCrate: armorMul = Math.Max(0.4f, armorMul * 0.7f); break;
-                        case ItemType.Potion: hp = Math.Min(HeroHp, hp + 45f); break;
-                        case ItemType.SpeedBoots: speedMul *= 1.3f; break;
+                        case ItemType.SwordCrate: dmg += SwordBonus; break;
+                        case ItemType.ArmorCrate: armorMul = Math.Max(ArmorMin, armorMul * ArmorFactor); break;
+                        case ItemType.Potion: hp = Math.Min(HeroHp, hp + PotionHeal); break;
+                        case ItemType.SpeedBoots: speedMul *= BootsFactor; break;
                         case ItemType.Bomb:
-                            Ev(SimEventType.Bomb, i, 40f, s.P.Cell.Center);
+                            Ev(SimEventType.Bomb, i, BombDamage, s.P.Cell.Center);
                             for (int k = 0; k < enemies.Count; k++)
                             {
                                 var e = enemies[k];
                                 if (!e.Alive || Vec2.Dist(e.Pos, heroPos) > 2.5f) continue;
-                                e.Hp -= 40f;
+                                e.Hp -= BombDamage;
                                 e.Aggro = true;
                                 if (e.Hp <= 0f) { e.Alive = false; Ev(SimEventType.EnemyDied, k, 0, e.Pos); }
                             }
@@ -230,6 +246,18 @@ namespace BlindAttack.Core
                 }
 
                 // ---------- Düşmanlar ----------
+                // aynı anda en fazla N düşman saldırabilir (son 1.3 sn içinde vurmuş olanlar "saldıran" sayılır)
+                int attacking = 0;
+                foreach (var en in enemies) if (en.Alive && t - en.LastAttack < EngageWindow) attacking++;
+                bool CanAttack(Enemy en) => t - en.LastAttack < EngageWindow || attacking < MatchRules.MaxSimultaneousAttackers;
+                void DoAttack(Enemy en, int idx)
+                {
+                    if (t - en.LastAttack >= EngageWindow) attacking++;
+                    en.LastAttack = t;
+                    en.Cooldown = en.Def.AttackInterval;
+                    HurtHero(en.Def.Damage);
+                    Ev(SimEventType.EnemyAttack, idx, en.Def.Damage * armorMul, en.Pos);
+                }
                 for (int i = 0; i < enemies.Count; i++)
                 {
                     var e = enemies[i];
@@ -247,7 +275,7 @@ namespace BlindAttack.Core
                         {
                             if (d <= e.Def.Range && los)
                             {
-                                if (e.Cooldown <= 0f) { e.Cooldown = e.Def.AttackInterval; HurtHero(e.Def.Damage); Ev(SimEventType.EnemyAttack, i, e.Def.Damage * armorMul, e.Pos); }
+                                if (e.Cooldown <= 0f && CanAttack(e)) DoAttack(e, i);
                             }
                             else if (d > e.Def.Aggro * 1.6f) e.Aggro = false;
                         }
@@ -256,7 +284,7 @@ namespace BlindAttack.Core
                             if (Vec2.Dist(e.Pos, e.Home) > 8f) { e.Aggro = false; e.Path = null; }
                             else if (d <= e.Def.Range)
                             {
-                                if (e.Cooldown <= 0f) { e.Cooldown = e.Def.AttackInterval; HurtHero(e.Def.Damage); Ev(SimEventType.EnemyAttack, i, e.Def.Damage * armorMul, e.Pos); }
+                                if (e.Cooldown <= 0f && CanAttack(e)) DoAttack(e, i);
                             }
                             else if (los && map.HasWalkLine(e.Pos, heroPos)) { e.Pos = MoveToward(e.Pos, heroPos, e.Def.Speed * Dt); e.Path = null; }
                             else
@@ -288,7 +316,7 @@ namespace BlindAttack.Core
 
             res.Duration = t;
             res.Progress = res.Reached ? 1f : Math.Max(0f, Math.Min(0.99f, 1f - bestSteps / (float)totalSteps));
-            res.Score = res.Reached ? 100 + (int)Math.Ceiling(hp) : (int)Math.Floor(res.Progress * 99f);
+            res.Score = res.Reached ? 100 + (int)Math.Ceiling(hp) : (int)Math.Floor(res.Progress * MatchRules.MaxProgressScore);
             return res;
         }
 

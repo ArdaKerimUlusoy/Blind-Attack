@@ -40,6 +40,8 @@ namespace BlindAttack.Game
         public Action OnMatchFinishedReturn;
         float matchEndCountdown = -1f;
         int lastCountdownInt = -1;
+        // bu turun iki saldırısının yerel simülasyon sonuçları (tur sonu istatistikleri için)
+        readonly SimResult[] roundResults = new SimResult[2];
 
         public void Init(GameUI ui, MapView view, IsoCamera cam, PlacementController placer, Playback playback, RoutePreview route)
         {
@@ -91,6 +93,7 @@ namespace BlindAttack.Game
                     // yeni maç (rövanş dahil): her şeyi sıfırla
                     wins = new int[2]; totals = new int[2];
                     lastDefense.Clear(); lastSupply.Clear();
+                    roundResults[0] = roundResults[1] = null;
                     matchEndCountdown = -1f;
                     placer.End(); playback.Stop(); route.Clear();
                     phase = LocalPhase.None;
@@ -130,12 +133,10 @@ namespace BlindAttack.Game
                     ui.SetOverlay(null);
                     ui.SetTerritory(false);
                     int mine = Me == 0 ? s0 : s1, theirs = Me == 0 ? s1 : s0;
-                    string verdict = mine > theirs ? "<color=#4E8A2E><b>Bu turu sen aldın!</b></color>"
-                                   : mine < theirs ? "<color=#B5452F><b>Bu turu rakip aldı.</b></color>"
-                                   : "<b>Berabere!</b>";
-                    ui.ShowRound($"TUR {r} SONUCU",
-                        $"Senin saldırın: <b>{mine}</b> puan\n{Them}: <b>{theirs}</b> puan\n\n{verdict}\n<size=22>Çıkışa ulaşmak = 100 + kalan can. Ulaşamazsan ilerleme yüzdesi.</size>",
-                        mine >= theirs);
+                    ui.EndCinematic();
+                    var myStats = roundResults[Me] != null ? AttackStats.From(roundResults[Me]) : null;
+                    var theirStats = roundResults[1 - Me] != null ? AttackStats.From(roundResults[1 - Me]) : null;
+                    ui.ShowRoundStats(r, names[Me], Them, mine, theirs, myStats, theirStats);
                     UpdateScore();
                     break;
                 }
@@ -157,6 +158,7 @@ namespace BlindAttack.Game
                     ui.ShowMatch(title, color, CanRematch != null && CanRematch(),
                         $"Tur galibiyeti: <b>{wins[Me]}</b> - <b>{wins[1 - Me]}</b>\nToplam puan: <b>{totals[Me]}</b> - <b>{totals[1 - Me]}</b>\n\n<size=24>Rakip: {Them}</size>",
                         winner == Me);
+                    foreach (var a in Achievements.CheckMatch(winner == Me, wins[Me], wins[1 - Me])) ui.ShowAchievement(a.Name, a.Desc);
                     break;
                 }
             }
@@ -169,10 +171,11 @@ namespace BlindAttack.Game
             timer = secs;
             ui.HideRound();
             ui.SetOverlay(null);
+            roundResults[0] = roundResults[1] = null;
             view.Build(maps[Me], false);
             var env = FindAnyObjectByType<EnvironmentView>();
             if (env) env.Build(false);
-            GameApp.ApplyLook(cam.Cam, false);
+            GameApp.ApplyLook(cam.Cam, false, maps[Me]);
             cam.Frame(view.WorldBounds);
             lastDefense.Clear();
             placer.Begin(view, cam.Cam, true, null);
@@ -194,7 +197,7 @@ namespace BlindAttack.Game
             view.Build(maps[1 - Me], true);
             var env = FindAnyObjectByType<EnvironmentView>();
             if (env) env.Build(true);
-            GameApp.ApplyLook(cam.Cam, true);
+            GameApp.ApplyLook(cam.Cam, true, maps[1 - Me]);
             cam.Frame(view.WorldBounds);
             lastSupply.Clear();
             var initial = new List<Placement> { new Placement(ItemType.Hero, MatchRules.DefaultHeroCell(view.Map)) };
@@ -224,22 +227,25 @@ namespace BlindAttack.Game
             view.Build(mapIndex, mine);
             var env = FindAnyObjectByType<EnvironmentView>();
             if (env) env.Build(mine);
-            GameApp.ApplyLook(cam.Cam, mine);
+            GameApp.ApplyLook(cam.Cam, mine, mapIndex);
             cam.Frame(view.WorldBounds);
 
             var defenders = PlacementCodec.Decode(defCsv);
             var supplies = PlacementCodec.Decode(supCsv);
             var result = AttackSimulation.Run(view.Map, defenders, supplies);
+            roundResults[attacker] = result;
             route.Show(view, supplies, 0.45f);
             if (result.Score != score) Debug.LogWarning($"[BlindAttack] Yerel simülasyon skoru ({result.Score}) host'tan farklı ({score}). Host skoru geçerli.");
 
             ui.SetTerritory(mine);
-            ui.ShowTerritoryBanner(mine ? "Rakip Bölge" : "Senin Bölgen", mine ? "Senin saldırın" : $"{Them} saldırıyor", mine);
+            ui.ShowCinematic($"TUR {round}/{rounds}", mine ? "Senin saldırın" : $"{Them} saldırıyor",
+                $"{view.Map.Name}  ·  {Atmosphere.Name(Atmosphere.ForMap(mapIndex))}  ·  {(mine ? "Rakip Bölge" : "Senin Bölgen")}");
             ui.SetPhase($"TUR {round}/{rounds} · SALDIRI",
                 mine ? "Rakip Bölge: Senin kahramanın ilerliyor." : $"Senin Bölgen: {Them} saldırıyor.");
             ui.SetMapInfo(mine ? $"<b>{view.Map.Name}</b>\n<color=#B5452F><b>Rakip Bölge</b></color>" : $"<b>{view.Map.Name}</b>\n<color=#4E8A2E><b>Senin Bölgen</b></color>");
             ui.ShowPlayback(mine ? "Senin saldırın" : $"{Them} saldırıyor");
-            playback.Play(result, view, cam, !mine);
+            playback.Quiet = false;
+            playback.Play(result, view, cam, !mine, true);
         }
 
         void OnPlaybackFinished()
@@ -247,6 +253,12 @@ namespace BlindAttack.Game
             if (phase != LocalPhase.Watching) return;
             Send?.Invoke(Msg.Join("DONE", round, watchingAttacker));
             bool mine = watchingAttacker == Me;
+            var res = roundResults[watchingAttacker];
+            if (res != null)
+            {
+                var st = AttackStats.From(res);
+                foreach (var a in mine ? Achievements.CheckAttack(st) : Achievements.CheckDefense(st)) ui.ShowAchievement(a.Name, a.Desc);
+            }
             ui.SetOverlay((mine ? "Saldırı puanın: " : "Rakibin puanı: ") + hostScore + (watchingAttacker == 0 ? "\nSıradaki saldırı hazırlanıyor..." : ""));
         }
 
@@ -293,13 +305,14 @@ namespace BlindAttack.Game
                     string hint = string.IsNullOrEmpty(placer.Hint) ? $"<b>{def.Name}:</b> {def.Description}" : $"<color=#B5452F>{placer.Hint}</color>";
                     string help = phase == LocalPhase.Supply
                         ? "   ·   Sol tık: koy   Sağ tık: kaldır   Sağ tık sürükle / Q-E: döndür   WASD: kaydır"
-                        : "   ·   Sol tık: koy   Sağ tık: kaldır   Sağ tık sürükle / Q-E: döndür   WASD: kaydır";
+                        : "   ·   Bir bölgeye en fazla 3 birim · dar geçitlere yay   ·   Sol tık: koy   Sağ tık: kaldır";
                     ui.SetHint(hint + help);
                 }
                 else ui.SetHint("Yerleştirmen gönderildi.");
             }
             else if (phase == LocalPhase.Watching && playback.Running)
             {
+                if (!playback.InIntro) ui.EndCinematic();
                 ui.UpdatePlayback(playback.HeroHpFraction, playback.LastInfo);
                 ui.SetPlaybackStats(playback.StatsText);
             }

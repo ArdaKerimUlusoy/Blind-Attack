@@ -49,6 +49,7 @@ namespace BlindAttack.Game
             Application.targetFrameRate = 120;
 
             AudioManager.EnsureExists();
+            IsoCamera.ShakeEnabled = PlayerPrefs.GetInt(ShakeKey, 1) == 1;
 
             var camera = Camera.main;
             if (camera == null)
@@ -59,7 +60,7 @@ namespace BlindAttack.Game
             cam = camera.GetComponent<IsoCamera>();
             if (!cam) cam = camera.gameObject.AddComponent<IsoCamera>();
             cam.MenuMode = true;
-            ApplyLook(camera, false);
+            ApplyLook(camera, false, PeekNextMap());
 
             view = FindAnyObjectByType<MapView>();
             if (!view) view = new GameObject("Harita").AddComponent<MapView>();
@@ -84,6 +85,7 @@ namespace BlindAttack.Game
             ui.OnBackToMenu = () => BackToMenu("");
             ui.OnRematch = Rematch;
             ui.OnResume = () => SetPause(false);
+            ui.OnShakeChanged = on => { PlayerPrefs.SetInt(ShakeKey, on ? 1 : 0); PlayerPrefs.Save(); };
             ui.OnQuitGame = QuitGame;
             ui.OnToggleFullscreen = () =>
             {
@@ -93,6 +95,7 @@ namespace BlindAttack.Game
                 ui.SetFullscreenLabel(fs);
             };
             session.CanRematch = CanRematch;
+            playback.Finished += OnMenuPlaybackFinished;
             session.OnMatchFinishedReturn = () => BackToMenu("");
 
             ShowMenuMap();
@@ -100,15 +103,41 @@ namespace BlindAttack.Game
 
         void ShowMenuMap()
         {
-            view.Build(matchMap == MapChoice.HerMactaDegisir ? PeekNextMap() : (int)matchMap, false);
+            menuMap = matchMap == MapChoice.HerMactaDegisir ? PeekNextMap() : (int)matchMap;
+            view.Build(menuMap, false);
             var env = FindAnyObjectByType<EnvironmentView>();
             if (env) env.Build(false);
-            ApplyLook(cam ? cam.Cam : Camera.main, false);
+            ApplyLook(cam ? cam.Cam : Camera.main, false, menuMap);
             if (cam)
             {
                 cam.MenuMode = true;
                 cam.Frame(view.WorldBounds);
             }
+            StartMenuSkirmish();
+        }
+
+        // ---------------- Ana menü arka planı: botlar arasında küçük bir çatışma ----------------
+        int menuMap, menuSeed = 1;
+        float menuRestart = -1f;
+
+        void StartMenuSkirmish()
+        {
+            if (mode != Mode.Menu || view == null) return;
+            menuRestart = -1f;
+            view.ClearUnits();
+            var map = view.Map;
+            menuSeed++;
+            int seed = Environment.TickCount ^ (menuSeed * 7919);
+            var d = Core.MatchRules.Sanitize(map, Core.BotPlanner.PlanDefense(map, seed), true);
+            var sup = Core.MatchRules.Sanitize(map, Core.BotPlanner.PlanSupplies(map, seed + 17), false);
+            var result = Core.AttackSimulation.Run(map, d, sup);
+            playback.Quiet = true;
+            playback.Play(result, view, cam, true);
+        }
+
+        void OnMenuPlaybackFinished()
+        {
+            if (mode == Mode.Menu && playback.Quiet) menuRestart = 2f;
         }
 
         // ---------------- Harita rotasyonu ----------------
@@ -141,6 +170,8 @@ namespace BlindAttack.Game
         }
 
         // ---------------- ESC menüsü ----------------
+        const string ShakeKey = "BlindAttack.Shake";
+
         void TogglePause()
         {
             if (ui.CloseHelpIfOpen()) return;
@@ -165,13 +196,23 @@ namespace BlindAttack.Game
 #endif
         }
 
-        /// <summary>Işık, ortam rengi ve kamera arka planı (editör sahne kurulumu da kullanır).</summary>
-        public static void ApplyLook(Camera camera, bool hostile = false)
+        /// <summary>
+        /// Işık, ortam rengi, sis ve görüntü efektleri (editör sahne kurulumu da kullanır).
+        /// Her haritanın kendi saati var: Nehir Vadisi sabah, Kale Bahçesi gün batımı, Taş Ocağı gece.
+        /// Rakip bölgede aynı saat kızıl bir tona bürünür.
+        /// </summary>
+        public static void ApplyLook(Camera camera, bool hostile = false, int mapIndex = 0)
         {
+            var tod = Atmosphere.ForMap(mapIndex);
+            var p = Atmosphere.Preset(tod, hostile);
+            lastHostile = hostile; lastMap = mapIndex;
+
             if (camera != null)
             {
                 camera.clearFlags = CameraClearFlags.SolidColor;
-                camera.backgroundColor = hostile ? EnvironmentView.FarGroundHostile : EnvironmentView.FarGroundFriendly;
+                var far = (hostile ? EnvironmentView.FarGroundHostile : EnvironmentView.FarGroundFriendly) * p.DayLight;
+                far.a = 1f;
+                camera.backgroundColor = Color.Lerp(far, p.Haze, 0.65f);
             }
 
             Light sun = null;
@@ -180,28 +221,81 @@ namespace BlindAttack.Game
             if (sun == null) sun = new GameObject("Güneş").AddComponent<Light>();
             sun.type = LightType.Directional;
             sun.shadows = LightShadows.Soft;
-            sun.shadowStrength = hostile ? 0.65f : 0.55f;
-            sun.transform.rotation = Quaternion.Euler(50f, 20f, 0f);
+            sun.transform.rotation = Quaternion.Euler(p.SunEuler);
+            sun.color = p.Sun;
+            sun.intensity = p.SunIntensity;
+            sun.shadowStrength = p.Shadow;
 
-            if (hostile)
+            RenderSettings.ambientMode = AmbientMode.Trilight;
+            RenderSettings.ambientSkyColor = p.Sky;
+            RenderSettings.ambientEquatorColor = p.Equator;
+            RenderSettings.ambientGroundColor = p.Ground;
+
+            RenderSettings.fog = true;
+            RenderSettings.fogMode = FogMode.Linear;
+            RenderSettings.fogColor = p.Haze;
+            RenderSettings.fogStartDistance = p.FogStart;
+            RenderSettings.fogEndDistance = p.FogEnd;
+
+            if (Application.isPlaying)
             {
-                sun.color = new Color(1.0f, 0.88f, 0.74f);
-                sun.intensity = 1.30f;
-                RenderSettings.ambientMode = AmbientMode.Trilight;
-                RenderSettings.ambientSkyColor = new Color(0.92f, 0.78f, 0.70f);
-                RenderSettings.ambientEquatorColor = new Color(0.80f, 0.60f, 0.50f);
-                RenderSettings.ambientGroundColor = new Color(0.56f, 0.38f, 0.28f);
+                ApplyPostFx(camera, p, false);
+                var map = FindAnyObjectByType<MapView>();
+                Atmosphere.Setup(mapIndex, hostile, map ? map.WorldBounds : new Bounds(new Vector3(15, 0, 10), new Vector3(30, 1, 20)));
             }
-            else
+        }
+
+        static bool lastHostile;
+        static int lastMap;
+
+        /// <summary>Kahraman düşünce dünya griye döner; false ile normale döner.</summary>
+        public static void SetGrade(bool grey)
+        {
+            if (!Application.isPlaying) return;
+            ApplyPostFx(Camera.main, Atmosphere.Preset(Atmosphere.ForMap(lastMap), lastHostile), grey);
+        }
+
+        /// <summary>Bloom (fener ve portallar parlasın), doygunluk/kontrast, kenar kararması.</summary>
+        static void ApplyPostFx(Camera camera, LookPreset p, bool grey)
+        {
+            if (camera != null)
             {
-                sun.color = new Color(1f, 0.93f, 0.80f);
-                sun.intensity = 1.25f;
-                RenderSettings.ambientMode = AmbientMode.Trilight;
-                RenderSettings.ambientSkyColor = new Color(0.78f, 0.85f, 0.95f);
-                RenderSettings.ambientEquatorColor = new Color(0.72f, 0.70f, 0.60f);
-                RenderSettings.ambientGroundColor = new Color(0.45f, 0.40f, 0.32f);
+                var data = camera.GetComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+                if (data == null) data = camera.gameObject.AddComponent<UnityEngine.Rendering.Universal.UniversalAdditionalCameraData>();
+                data.renderPostProcessing = true;
             }
-            RenderSettings.fog = false;
+            Volume volume = null;
+            foreach (var v in FindObjectsByType<Volume>(FindObjectsSortMode.None))
+                if (v.isGlobal) { volume = v; break; }
+            if (volume == null)
+            {
+                volume = new GameObject("Görüntü Efektleri").AddComponent<Volume>();
+                volume.isGlobal = true;
+                volume.sharedProfile = ScriptableObject.CreateInstance<VolumeProfile>();
+            }
+            var profile = volume.profile; // çalışırken kopyası üzerinde çalışır, asset'i değiştirmez
+
+            T Get<T>() where T : VolumeComponent
+            {
+                if (!profile.TryGet<T>(out var c)) c = profile.Add<T>(true);
+                c.active = true;
+                return c;
+            }
+            var bloom = Get<UnityEngine.Rendering.Universal.Bloom>();
+            bloom.intensity.Override(p.Bloom);
+            bloom.threshold.Override(0.95f);
+            bloom.scatter.Override(0.65f);
+            var color = Get<UnityEngine.Rendering.Universal.ColorAdjustments>();
+            color.postExposure.Override(grey ? p.Exposure - 0.3f : p.Exposure);
+            color.contrast.Override(grey ? 18f : 8f);
+            color.saturation.Override(grey ? -80f : p.Saturation);
+            color.colorFilter.Override(grey ? new Color(0.92f, 0.94f, 1f) : p.Filter);
+            var vignette = Get<UnityEngine.Rendering.Universal.Vignette>();
+            vignette.intensity.Override(grey ? 0.42f : 0.24f);
+            vignette.smoothness.Override(0.45f);
+            vignette.color.Override(new Color(0.12f, 0.08f, 0.05f));
+            var tone = Get<UnityEngine.Rendering.Universal.Tonemapping>();
+            tone.mode.Override(UnityEngine.Rendering.Universal.TonemappingMode.Neutral);
         }
 
         // ================= Modlar =================
@@ -338,7 +432,11 @@ namespace BlindAttack.Game
         void ResetMatch()
         {
             inbox.Clear();
+            menuRestart = -1f;
+            playback.Stop();
+            playback.Quiet = false;
             session.Stop();
+            if (view) view.ClearUnits();
             if (net != null) { net.Shutdown(); net = null; }
             host = null; bot = null;
             matchStarted = false;
@@ -365,6 +463,12 @@ namespace BlindAttack.Game
             int guard = 0;
             while (inbox.Count > 0 && guard++ < 200) inbox.Dequeue()?.Invoke();
             host?.Tick(Time.deltaTime);
+
+            if (menuRestart > 0f)
+            {
+                menuRestart -= Time.deltaTime;
+                if (menuRestart <= 0f) StartMenuSkirmish();
+            }
 
             var kb = UnityEngine.InputSystem.Keyboard.current;
             if (kb != null && kb.escapeKey.wasPressedThisFrame) TogglePause();

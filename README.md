@@ -6,10 +6,10 @@
 
 İki oyuncu da maç boyunca **aynı haritada** oynar. Her yeni maç (rövanş dahil) bir öncekinden **farklı haritada** başlar. Bir maç 3 tur sürer. Her turda:
 
-1. **Savunma (50 sn):** Haritaya Goblin, Okçu, Dev ve gizli Diken Tuzağı koyarsın (28 altın). Çıkış kapısının hemen önüne (kırmızı alan) düşman konamaz.
+1. **Savunma (50 sn):** Haritaya Goblin, Okçu, Dev ve gizli Diken Tuzağı koyarsın (36 altın). Çıkışa 6 adımdan yakın yere (kırmızı alan) düşman konamaz ve bir bölgeye (5x5) en fazla 3 birim konur. Fareyle gezdirirken düşmanın fark etme menzili halka olarak, bölge sınırı da sarı (dolunca kırmızı) kare olarak görünür.
 2. **Saldırı hazırlığı (45 sn):** Aynı haritayı görürsün ama rakibin düşmanları **gizlidir**.
    - **Kahraman:** Mavi başlangıç bölgesinde istediğin yere koy. Oradan yola çıkar.
-   - **Kutular (14 altın):** Kılıç, Zırh, İksir, Çizme, Bomba.
+   - **Kutular (14 altın, aynı kutudan en fazla 2):** Kılıç, Zırh, İksir, Çizme, Bomba.
    - **Bayrak (ücretsiz, en fazla 3):** Kahramanın uğrayacağı rota noktası.
    - Kahramanın gideceği rota haritada **noktalı çizgi ve numaralarla** gösterilir: başlangıçtan en yakın hedefe, sonra kalanların en yakınına... en son çıkışa. Kutuyu ya da bayrağı nereye koyarsan rota oradan geçer.
 3. **Saldırı:** Önce 1. oyuncunun, sonra 2. oyuncunun saldırısını birlikte izlersiniz. Kahraman rotada yürür, yolda gördüğü düşmanlarla savaşır.
@@ -18,15 +18,28 @@
 
 | Kutu | Etki | Görünüm |
 |---|---|---|
-| Kılıç | +6 saldırı | Kılıç büyür, turuncu sonra kırmızı-beyaz parlar ve alev saçar |
-| Zırh | Alınan hasar %30 azalır | Göğüs zırhı, omuzluk, miğfer. 2. zırhta altın renk ve kalkan. Darbe alınca mavi kıvılcım |
-| Çizme | %30 hızlı yürür ve vurur | Kanatlı altın çizmeler, yürürken toz izi |
-| İksir | +45 can | Yeşil iyileşme parıltısı |
-| Bomba | Alınca patlar, etraftaki düşmanlara 40 hasar | Patlama ve sarsıntı |
+| Kılıç | +3 saldırı | Kılıç büyür, turuncu sonra kırmızı-beyaz parlar ve alev saçar |
+| Zırh | Alınan hasar %15 azalır | Göğüs zırhı, omuzluk, miğfer. 2. zırhta altın renk ve kalkan. Darbe alınca mavi kıvılcım |
+| Çizme | %20 hızlı yürür ve vurur | Kanatlı altın çizmeler, yürürken toz izi |
+| İksir | +20 can | Yeşil iyileşme parıltısı |
+| Bomba | Alınca patlar, etraftaki düşmanlara 60 hasar | Patlama ve sarsıntı |
 
 İzleme sırasında alttaki çubukta kahramanın güncel **Saldırı / Zırh / Hız** değerleri görünür.
 
-**Puan:** Çıkışa ulaşırsan 100 + kalan can. Ulaşamazsan başlangıç noktana göre çıkışa ne kadar yaklaştığın (0-99). Turu daha yüksek puan alan kazanır.
+**Denge kuralları:** Kahramanın canı 125, saldırısı 13. Aynı kutudan en fazla 2 konur (tek tip yığmak yok). Kahramana aynı anda en fazla 2 düşman vurabilir. Kahramanın kılıcı ana hedefin yanındaki düşmanlara da çeyrek hasar verir. Dev: 95 can, 16 hasar, 7 altın. Tek noktaya yığmak yerine savunmayı dar geçitlere yaymak gerekir.
+
+**Puan:** Çıkışa ulaşırsan 100 + kalan can. Ulaşamazsan çıkışa ne kadar yaklaştığına göre en fazla 60. Turu daha yüksek puan alan kazanır.
+
+## Görsel ve atmosfer
+
+- **Her haritanın kendi saati var:** Nehir Vadisi sabah sisi, Kale Bahçesi gün batımı, Taş Ocağı ay ışığında gece (fenerler yanar, ateş böcekleri uçar). Rakip bölgede aynı saat kızıl bir tona bürünür.
+- **Canlı çevre:** Kuş sürüleri, rüzgârda sallanan ağaçlar ve çalılar, akan su, dönen değirmen, bacalardan yükselen duman, düşen yapraklar.
+- **Saldırı açılışı:** Sinema şeritleri kayar, tur başlığı belirir. Kamera çıkıştan haritanın üstüne, oradan kahramana süzülürken gizli savunma sırayla **yerden fışkırır**.
+- **Karakter kişiliği:** Beklerken goblin kafasını kaşır, dev esner, okçu yayını yoklar. Kahramanı fark eden düşmanın başında "!" çıkar. Kahraman kutu alınca, tuzağa basınca, dev görünce, canı azalınca konuşur.
+- **Ölüm ve zafer anı:** Kahraman düşünce ağır çekim, kamera yaklaşır, dünya griye döner. Çıkışa ulaşınca kısa ağır çekim, ekran parlar, kahraman dönerek portala çekilir.
+- **Tur sonu ekranı:** İki saldırı yan yana. Puanlar sayaç gibi dolar. Öldürülen düşman, verilen ve alınan hasar, toplanan kutu, tuzak, süre, en tehlikeli savunucu.
+- **Başarımlar:** Menüdeki "Başarımlar" düğmesinden görülür (bu bilgisayarda saklanır). Örnekler: Kusursuz (hasar almadan geç), Kasap (8 düşman), Bombacı, Aşılmaz Duvar, Şampiyon, Ezici Üstünlük (3-0).
+- **Ana menü:** Arka planda kamera haritanın etrafında döner, iki bot arasında küçük bir çatışma oynar.
 
 **Kontroller:** Sol tık koyar, sağ tık kaldırır, sayı tuşları seçim yapar. Fare tekerleği yakınlaştırır. WASD, ok tuşları ya da orta tuşla sürükleyerek kamerayı kaydırırsın, Space ortalar. İzlerken 1x / 2x / Atla düğmeleri var.
 
@@ -83,7 +96,7 @@ Assets/BlindAttack/Scripts/
     MatchRules            bütçe, süreler, yerleştirme kuralları  <- denge ayarları burada
     Pathfinder            A* yol bulma
     AttackSimulation      saldırının deterministik simülasyonu
-    BotPlanner            bot modu için yerleştirme
+    BotPlanner            bot modu: dar geçitleri bulan savunma, dengeli kutu seçen saldırı
   Match/MatchHost         maçın hakemi (sadece host'ta çalışır) + bot oyuncu
   Net/NetLayer            Netcode named message + Relay oturumu + LAN
   Game/                   Unity tarafı: sahne, görseller, arayüz
@@ -94,7 +107,10 @@ Assets/BlindAttack/Scripts/
     RoutePreview          noktalı rota çizgisi
     Art                   malzemeler ve el boyaması dokular
     PlacementController   fareyle yerleştirme
-    Playback, Effects     saldırıyı oynatma, efektler
+    Playback, Effects     saldırıyı oynatma (açılış sinematiği, ağır çekim), efektler
+    Juice                 menzil halkası, "!" işareti, konuşma balonu, yerden çıkma, duman, rüzgâr
+    Atmosphere            harita başına gün saati ve ışık ayarları, kuşlar, sis, ateş böcekleri
+    MatchStats            tur sonu istatistikleri ve başarımlar
     GameUI, UiKit         tüm arayüz (koddan)
 ```
 

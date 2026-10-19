@@ -70,6 +70,9 @@ namespace BlindAttack.Game
             pan = Vector3.zero;
             followOffset = Vector3.zero;
             follow = null;
+            intro = false;
+            // menüde dönen kamera oyuna başlarken varsayılan açıya dönsün
+            yaw = targetYaw = 45f; pitch = targetPitch = 38f;
             Apply(true);
         }
 
@@ -81,9 +84,51 @@ namespace BlindAttack.Game
             pan = Vector3.zero;
         }
 
-        public void Shake(float amount) => shake = Mathf.Max(shake, amount);
+        /// <summary>Ayarlardan kapatılabilir (baş ağrıtmasın).</summary>
+        public static bool ShakeEnabled = true;
+        public void Shake(float amount) { if (ShakeEnabled) shake = Mathf.Max(shake, amount); }
         public bool MenuMode = true;
         float menuTime;
+
+        // ---- saldırı açılış sinematiği: çıkıştan haritanın üstüne, oradan kahramana süzülür ----
+        bool intro;
+        float introK;
+        Vector3 introFrom, introTo;
+        public bool InIntro => intro;
+
+        public void BeginIntro(Vector3 fromWorld, Vector3 toWorld)
+        {
+            intro = true; introK = 0f;
+            introFrom = fromWorld; introTo = toWorld;
+            follow = null; followOffset = Vector3.zero;
+        }
+
+        /// <summary>0..1 ilerleme (oynatıcı kendi zamanıyla sürer, böylece duraklatma ve hız ayarına uyar).</summary>
+        public void SetIntroProgress(float k) => introK = Mathf.Clamp01(k);
+
+        public void EndIntro()
+        {
+            if (!intro) return;
+            intro = false;
+            followOffset = pan; pan = Vector3.zero;
+            targetYaw = yaw; targetPitch = pitch; targetZoom = zoom;
+        }
+
+        void UpdateIntro()
+        {
+            float k = introK;
+            var c = target.center;
+            Vector3 p0 = introFrom - c, p2 = introTo - c;
+            float u = k * k * (3f - 2f * k);
+            // ikinci dereceden eğri: çıkış -> harita merkezi -> kahraman
+            pan = (1f - u) * (1f - u) * p0 + u * u * p2;
+            pan.y = 0f;
+            float a = Mathf.Clamp01(k / 0.5f), b = Mathf.Clamp01((k - 0.5f) / 0.5f);
+            float sa = a * a * (3f - 2f * a), sb = b * b * (3f - 2f * b);
+            zoom = k < 0.5f ? Mathf.Lerp(0.5f, 1.05f, sa) : Mathf.Lerp(1.05f, 0.72f, sb);
+            pitch = k < 0.5f ? Mathf.Lerp(24f, 52f, sa) : Mathf.Lerp(52f, 38f, sb);
+            yaw = Mathf.Lerp(12f, 45f, u);
+        }
 
         void LateUpdate()
         {
@@ -94,14 +139,18 @@ namespace BlindAttack.Game
 
         void HandleInput()
         {
+            if (intro) { UpdateIntro(); return; }
             if (MenuMode)
             {
+                // ana menü: harita etrafında yavaş tur, hafif yaklaşıp uzaklaşma
                 menuTime += Time.unscaledDeltaTime * 0.25f;
                 pan = new Vector3(Mathf.Sin(menuTime) * 1.6f, 0, Mathf.Cos(menuTime * 0.7f) * 1.1f);
-                targetZoom = 1.04f;
-                zoom = Mathf.Lerp(zoom, targetZoom, Time.unscaledDeltaTime * 6f);
-                yaw = Mathf.LerpAngle(yaw, 45f + Mathf.Sin(menuTime * 0.5f) * 8f, Time.unscaledDeltaTime * 4f);
-                pitch = Mathf.Lerp(pitch, 38f, Time.unscaledDeltaTime * 4f);
+                targetZoom = 0.92f + Mathf.Sin(menuTime * 0.6f) * 0.08f;
+                zoom = Mathf.Lerp(zoom, targetZoom, Time.unscaledDeltaTime * 3f);
+                targetYaw = yaw + Time.unscaledDeltaTime * 5f;
+                yaw = targetYaw;
+                pitch = Mathf.Lerp(pitch, 34f + Mathf.Sin(menuTime * 0.4f) * 4f, Time.unscaledDeltaTime * 2f);
+                targetPitch = pitch;
                 return;
             }
 
