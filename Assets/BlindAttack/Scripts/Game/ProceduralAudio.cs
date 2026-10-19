@@ -40,6 +40,9 @@ namespace BlindAttack.Game
         CountTick,      // tur sonu puan sayacı
         Achievement,    // başarım açıldı
         CinematicSwell, // saldırı açılışı
+        NatureMorning,  // ortam: sabah kuşları
+        NatureSunset,   // ortam: gün batımı esintisi
+        NatureNight,    // ortam: cırcır böcekleri, baykuş
     }
 
     /// <summary>
@@ -166,13 +169,23 @@ namespace BlindAttack.Game
                 case SoundId.CinematicSwell:
                     samples = GenSwell(2.2f);
                     break;
+                case SoundId.NatureMorning:
+                    samples = NatureSynth.Morning(SampleRate);
+                    break;
+                case SoundId.NatureSunset:
+                    samples = NatureSynth.Sunset(SampleRate);
+                    break;
+                case SoundId.NatureNight:
+                    samples = NatureSynth.Night(SampleRate);
+                    break;
                 default:
                     samples = GenClick();
                     break;
             }
 
             // müzik kendi döngü geçişini, portal sesi kendi bitişini yapıyor
-            if (id != SoundId.AmbientMusic && id != SoundId.PortalEnter) SmoothEdges(samples);
+            bool loops = id == SoundId.AmbientMusic || id == SoundId.NatureMorning || id == SoundId.NatureSunset || id == SoundId.NatureNight;
+            if (!loops && id != SoundId.PortalEnter) SmoothEdges(samples);
             var audioClip = AudioClip.Create(id.ToString(), samples.Length, 1, SampleRate, false);
             audioClip.SetData(samples, 0);
             return audioClip;

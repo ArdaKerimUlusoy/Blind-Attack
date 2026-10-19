@@ -40,6 +40,9 @@
 - **Tur sonu ekranı:** İki saldırı yan yana. Puanlar sayaç gibi dolar. Öldürülen düşman, verilen ve alınan hasar, toplanan kutu, tuzak, süre, en tehlikeli savunucu.
 - **Başarımlar:** Menüdeki "Başarımlar" düğmesinden görülür (bu bilgisayarda saklanır). Örnekler: Kusursuz (hasar almadan geç), Kasap (8 düşman), Bombacı, Aşılmaz Duvar, Şampiyon, Ezici Üstünlük (3-0).
 - **Ana menü:** Arka planda kamera haritanın etrafında döner, iki bot arasında küçük bir çatışma oynar.
+- **Ortam sesleri:** Sabah kuş cıvıltısı, gün batımında esinti ve uzaktan kuş, gece cırcır böcekleri ve baykuş (Ayarlar'daki "Efektler" ile ayarlanır).
+- **İlk oyun rehberi:** İlk savunma, ilk hazırlık ve ilk izlemede kısa ipucu kutuları çıkar. "Anladım" ya da "Rehberi kapat" ile kapanır, Ayarlar'dan tekrar açılabilir.
+- **Açılış logosu:** Oyun açılınca kısa bir giriş (tıklayınca geçilir).
 
 **Kontroller:** Sol tık koyar, sağ tık kaldırır, sayı tuşları seçim yapar. Fare tekerleği yakınlaştırır. WASD, ok tuşları ya da orta tuşla sürükleyerek kamerayı kaydırırsın, Space ortalar. İzlerken 1x / 2x / Atla düğmeleri var.
 

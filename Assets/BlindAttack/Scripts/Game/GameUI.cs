@@ -56,7 +56,9 @@ namespace BlindAttack.Game
             BuildStats(root);
             BuildCinematic(root);
             BuildAchievementPopup(root);
+            BuildTutorial(root);
             BuildPause(root);
+            BuildSplash(root);
             ShowMenu("");
         }
 
@@ -399,9 +401,11 @@ namespace BlindAttack.Game
             UiKit.Fit(muteLabel, 18); UiKit.Fit(shakeLabel, 18);
             UiKit.Size(shake, 336, 70);
 
-            var fs = UiKit.Button(settingsBox.transform, "", UiKit.WoodBtn, () => { OnToggleFullscreen?.Invoke(); }, 26);
+            var row2 = Row(settingsBox.transform, 688, 70);
+            var fs = UiKit.Button(row2, "", UiKit.WoodBtn, () => { OnToggleFullscreen?.Invoke(); }, 26);
             settingsFullscreenLabel = fs.GetComponentInChildren<Text>();
-            UiKit.Size(fs, 688, 70);
+            UiKit.Size(fs, 336, 70);
+            UiKit.Size(UiKit.Button(row2, "Rehberi Tekrar Göster", UiKit.WoodBtn, () => { ResetTutorial(); UiKit.Toast("Rehber bir sonraki maçta tekrar gösterilecek"); }, 24), 336, 70);
 
             var hint = UiKit.Label(settingsBox.transform, "Ayarlar otomatik kaydedilir.", 22, new Color(UiKit.Ink.r, UiKit.Ink.g, UiKit.Ink.b, 0.6f), TextAnchor.MiddleCenter, FontStyle.Italic);
             UiKit.Size(hint, 688, 30);
@@ -546,6 +550,7 @@ namespace BlindAttack.Game
             roundPanel.SetActive(false); matchPanel.SetActive(false);
             if (statsPanel) statsPanel.SetActive(false);
             if (cineRoot) cineRoot.SetActive(false);
+            HideTip();
         }
 
         public void ShowMenu(string status)
@@ -1093,6 +1098,109 @@ namespace BlindAttack.Game
             achListBox.SetActive(false);
             if (achFromMenu) { achFromMenu = false; pauseRoot.SetActive(false); }
             else pauseBox.SetActive(true);
+        }
+
+        // ================= İLK OYUN REHBERİ =================
+        GameObject tipBox;
+        Text tipTitle, tipBody;
+        const string TipPrefix = "BlindAttack.Tip.";
+        static readonly string[] TipKeys = { "savunma", "hazirlik", "izle" };
+
+        void BuildTutorial(Transform root)
+        {
+            tipBox = UiKit.Box(root, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0, -126), new Vector2(900, 250), new Color(0.24f, 0.15f, 0.08f, 0.95f));
+            tipBox.name = "Rehber";
+            var o = tipBox.GetComponent<UnityEngine.UI.Outline>();
+            if (o) { o.effectColor = UiKit.Gold; o.effectDistance = new Vector2(3, -3); }
+            var badge = new GameObject("İşaret");
+            var brt = UiKit.Rect(badge, tipBox.transform);
+            brt.anchorMin = brt.anchorMax = new Vector2(0, 1); brt.pivot = new Vector2(0, 1); brt.anchoredPosition = new Vector2(22, -22); brt.sizeDelta = new Vector2(70, 70);
+            var bimg = badge.AddComponent<Image>(); bimg.sprite = Art.Circle; bimg.color = UiKit.Gold; bimg.raycastTarget = false;
+            var q = UiKit.Title(badge.transform, "?", 50, new Color(0.35f, 0.2f, 0.08f));
+            UiKit.Stretch(q.rectTransform);
+            tipTitle = UiKit.Title(tipBox.transform, "", 34, UiKit.Gold, TextAnchor.MiddleLeft);
+            UiKit.Fit(tipTitle, 22);
+            Place(tipTitle.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(110, -18), new Vector2(-130, 46));
+            tipBody = UiKit.Label(tipBox.transform, "", 24, new Color(1f, 0.94f, 0.82f), TextAnchor.UpperLeft);
+            tipBody.supportRichText = true;
+            UiKit.Fit(tipBody, 17);
+            Place(tipBody.rectTransform, new Vector2(0, 1), new Vector2(1, 1), new Vector2(110, -66), new Vector2(-136, 120));
+            var ok = UiKit.Button(tipBox.transform, "Anladım", UiKit.Green, () => HideTip(true), 24);
+            Place((RectTransform)ok.transform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-20, 16), new Vector2(170, 52), new Vector2(1, 0));
+            var skip = UiKit.Button(tipBox.transform, "Rehberi kapat", UiKit.WoodBtn, () => { foreach (var k in TipKeys) PlayerPrefs.SetInt(TipPrefix + k, 1); PlayerPrefs.Save(); HideTip(false); }, 22);
+            Place((RectTransform)skip.transform, new Vector2(1, 0), new Vector2(1, 0), new Vector2(-202, 16), new Vector2(190, 52), new Vector2(1, 0));
+            tipBox.SetActive(false);
+        }
+
+        string currentTip;
+
+        /// <summary>Bu ipucu daha önce gösterilmediyse gösterir.</summary>
+        public void ShowTip(string key, string title, string body)
+        {
+            if (PlayerPrefs.GetInt(TipPrefix + key, 0) == 1) return;
+            currentTip = key;
+            tipTitle.text = title; tipBody.text = body;
+            tipBox.SetActive(true);
+            BringToFront(tipBox.transform);
+            tipBox.transform.localScale = Vector3.one * 0.85f;
+            Tween.Scale(tipBox.transform, Vector3.one, 0.3f, Ease.OutBack);
+            AudioManager.Play(SoundId.UiCopy, 0.7f);
+        }
+
+        /// <summary>Rehberi kapatır. remember=true ise bu ipucu bir daha gösterilmez.</summary>
+        public void HideTip(bool remember = false)
+        {
+            if (tipBox == null || !tipBox.activeSelf) return;
+            if (remember && currentTip != null) { PlayerPrefs.SetInt(TipPrefix + currentTip, 1); PlayerPrefs.Save(); }
+            tipBox.SetActive(false);
+        }
+
+        static void ResetTutorial()
+        {
+            foreach (var k in TipKeys) PlayerPrefs.DeleteKey(TipPrefix + k);
+            PlayerPrefs.Save();
+        }
+
+        // ================= AÇILIŞ LOGOSU =================
+        GameObject splash;
+
+        void BuildSplash(Transform root)
+        {
+            splash = UiKit.Panel(root, Vector2.zero, Vector2.one, new Color(0.06f, 0.04f, 0.03f, 1f));
+            splash.name = "Açılış";
+            splash.GetComponent<Image>().sprite = null;
+            var group = splash.AddComponent<CanvasGroup>();
+            var title = UiKit.Title(splash.transform, "BLIND ATTACK", 140, UiKit.Gold);
+            Place(title.rectTransform, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0, 110), new Vector2(0, 180), new Vector2(0.5f, 0.5f));
+            title.GetComponent<Shadow>().effectDistance = new Vector2(5, -7);
+            var line = UiKit.Panel(splash.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), UiKit.Gold);
+            var lrt = (RectTransform)line.transform; lrt.sizeDelta = new Vector2(0, 4); lrt.anchoredPosition = new Vector2(0, 10);
+            line.GetComponent<Image>().sprite = null;
+            var sub = UiKit.Title(splash.transform, "Görmeden kur, körlemesine saldır", 40, new Color(1f, 0.93f, 0.8f));
+            Place(sub.rectTransform, new Vector2(0, 0.5f), new Vector2(1, 0.5f), new Vector2(0, -40), new Vector2(0, 60), new Vector2(0.5f, 0.5f));
+            var hint = UiKit.Label(splash.transform, "geçmek için tıkla", 22, new Color(1f, 1f, 1f, 0.35f), TextAnchor.MiddleCenter, FontStyle.Italic);
+            Place(hint.rectTransform, new Vector2(0, 0), new Vector2(1, 0), new Vector2(0, 40), new Vector2(0, 40), new Vector2(0.5f, 0f));
+            var btn = splash.AddComponent<Button>();
+            btn.onClick.AddListener(() => CloseSplash());
+            splash.transform.SetAsLastSibling();
+
+            // giriş: yazı büyüyerek belirir, altın çizgi açılır
+            title.transform.localScale = Vector3.one * 0.8f;
+            sub.color = new Color(sub.color.r, sub.color.g, sub.color.b, 0f);
+            Tween.Scale(title.transform, Vector3.one, 0.9f, Ease.OutBack);
+            Tween.Custom(0f, 820f, 0.8f, w => { if (lrt) lrt.sizeDelta = new Vector2(w, 4); }, Ease.OutQuad);
+            Tween.Delay(0.6f).OnComplete(() => { if (sub) Tween.Custom(0f, 1f, 0.6f, a => { if (sub) sub.color = new Color(sub.color.r, sub.color.g, sub.color.b, a); }); });
+            AudioManager.Play(SoundId.BannerWhoosh, 0.7f, 0f);
+            Tween.Delay(0.25f).OnComplete(() => AudioManager.Play(SoundId.BannerGong, 0.6f, 0f));
+            Tween.Delay(2.8f).OnComplete(() => CloseSplash());
+        }
+
+        void CloseSplash()
+        {
+            if (splash == null || !splash.activeSelf) return;
+            var g = splash.GetComponent<CanvasGroup>();
+            g.blocksRaycasts = false;
+            Tween.Alpha(g, 0f, 0.6f, Ease.InQuad).OnComplete(() => { if (splash) splash.SetActive(false); });
         }
     }
 }

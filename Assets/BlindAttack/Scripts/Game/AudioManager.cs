@@ -11,6 +11,11 @@ namespace BlindAttack.Game
         readonly List<AudioSource> sfxPool = new List<AudioSource>();
         int poolIndex;
         AudioSource musicSource;
+        // ortam sesi (kuşlar, rüzgâr, cırcır böcekleri): iki kaynak arasında yumuşak geçiş
+        AudioSource natureA, natureB;
+        float natureFade = 1f;
+        SoundId natureId;
+        const float NatureLevel = 0.9f;
 
         [Range(0f, 1f)] public float masterVolume = 0.8f;
         [Range(0f, 1f)] public float sfxVolume = 0.8f;
@@ -46,6 +51,41 @@ namespace BlindAttack.Game
         void ApplyVolumes()
         {
             if (musicSource != null) musicSource.volume = muted ? 0f : musicVolume * masterVolume;
+            ApplyNatureVolumes();
+        }
+
+        float NatureBase => muted ? 0f : sfxVolume * masterVolume * NatureLevel;
+
+        void ApplyNatureVolumes()
+        {
+            if (natureA == null) return;
+            natureA.volume = NatureBase * natureFade;
+            natureB.volume = NatureBase * (1f - natureFade);
+        }
+
+        /// <summary>Haritanın saatine göre ortam sesini değiştirir (yumuşak geçişle).</summary>
+        public static void SetNature(TimeOfDay tod)
+        {
+            EnsureExists();
+            if (I == null) return;
+            var id = tod == TimeOfDay.Morning ? SoundId.NatureMorning : tod == TimeOfDay.Sunset ? SoundId.NatureSunset : SoundId.NatureNight;
+            if (I.natureA.isPlaying && I.natureId == id) return;
+            I.natureId = id;
+            // eski ses B'ye geçer ve söner, yeni ses A'da açılır
+            var old = I.natureA; I.natureA = I.natureB; I.natureB = old;
+            I.natureA.clip = ProceduralAudio.Get(id);
+            I.natureA.time = Random.Range(0f, 8f);
+            I.natureA.Play();
+            I.natureFade = 0f;
+            I.ApplyNatureVolumes();
+        }
+
+        void Update()
+        {
+            if (natureA == null || natureFade >= 1f) return;
+            natureFade = Mathf.MoveTowards(natureFade, 1f, Time.unscaledDeltaTime / 1.5f);
+            ApplyNatureVolumes();
+            if (natureFade >= 1f && natureB.isPlaying) natureB.Stop();
         }
 
         void Awake()
@@ -72,6 +112,10 @@ namespace BlindAttack.Game
             musicSource.playOnAwake = false;
             musicSource.spatialBlend = 0f;
             musicSource.volume = musicVolume * masterVolume;
+
+            natureA = gameObject.AddComponent<AudioSource>();
+            natureB = gameObject.AddComponent<AudioSource>();
+            foreach (var n in new[] { natureA, natureB }) { n.loop = true; n.playOnAwake = false; n.spatialBlend = 0f; n.volume = 0f; }
 
             StartAmbient();
         }

@@ -94,6 +94,7 @@ namespace BlindAttack.Game
         {
             if (!Application.isPlaying) return;
             if (instance == null) instance = new GameObject("Atmosfer").AddComponent<Atmosphere>();
+            AudioManager.SetNature(ForMap(mapIndex));
             instance.Build(ForMap(mapIndex), playArea);
         }
 

@@ -185,6 +185,10 @@ namespace BlindAttack.Game
             ui.SetPhase($"TUR {round}/{rounds} · SAVUNMA", "Senin Bölgen: Düşman ve tuzakları yerleştir.");
             ui.SetMapInfo($"<b>{view.Map.Name}</b>\n<color=#4E8A2E><b>Senin Bölgen</b></color>");
             route.Clear();
+            ui.HideTip();
+            ui.ShowTip("savunma", "1. Savunma: tuzağını kur",
+                "Rakibin kahramanı bu haritadan çıkışa geçmeye çalışacak. Goblin, Okçu, Dev ve gizli tuzakları <b>yollara ve dar geçitlere</b> yerleştir. " +
+                "Rakip bunları <b>göremeyecek</b>.\n<size=20>Kırmızı alana (çıkış önü) konamaz · bir bölgeye en fazla 3 birim · fareyle gezdirince menzil halkası görünür</size>");
         }
 
         void BeginSupply(float secs)
@@ -209,6 +213,10 @@ namespace BlindAttack.Game
             ui.ShowTerritoryBanner("Rakip Bölge", "Saldırı hazırlığı", true);
             ui.SetPhase($"TUR {round}/{rounds} · SALDIRI HAZIRLIĞI", "Rakip Bölge: Kahramanını ve kutularını yerleştir.");
             ui.SetMapInfo($"<b>{view.Map.Name}</b>\n<color=#B5452F><b>Rakip Bölge</b></color>");
+            ui.HideTip();
+            ui.ShowTip("hazirlik", "2. Saldırı hazırlığı: körlemesine plan",
+                "Şimdi rakibin haritasındasın ama düşmanları <b>gizli</b>! Kahramanını <b>mavi bölgeye</b> koy, yoluna kutular bırak. " +
+                "Kahraman noktalı çizgideki <b>numaralı sırayla</b> kutulara uğrar, sonra çıkışa koşar.\n<size=20>Aynı kutudan en fazla 2 · bayraklar ücretsiz rota noktası · rakip nereye pusu kurmuş olabilir?</size>");
         }
 
         void BeginWatch(int attacker, int mapIndex, string defCsv, string supCsv, int score)
@@ -246,6 +254,18 @@ namespace BlindAttack.Game
             ui.ShowPlayback(mine ? "Senin saldırın" : $"{Them} saldırıyor");
             playback.Quiet = false;
             playback.Play(result, view, cam, !mine, true);
+            ui.HideTip();
+            pendingWatchTip = true;
+        }
+
+        bool pendingWatchTip;
+
+        void ShowWatchTip()
+        {
+            pendingWatchTip = false;
+            ui.ShowTip("izle", "3. Saldırı: gerçek ortaya çıkıyor",
+                "Gizli savunma yerden çıkar, kahraman rotasında ilerler. Çıkışa ulaşan <b>100 + kalan can</b>, ulaşamayan ilerlemesine göre en fazla 60 puan alır. " +
+                "İki saldırı sırayla izlenir, yüksek puan turu kazanır.\n<size=20>1x / 2x / Atla düğmeleriyle izleme hızını ayarlayabilirsin</size>");
         }
 
         void OnPlaybackFinished()
@@ -312,7 +332,11 @@ namespace BlindAttack.Game
             }
             else if (phase == LocalPhase.Watching && playback.Running)
             {
-                if (!playback.InIntro) ui.EndCinematic();
+                if (!playback.InIntro)
+                {
+                    ui.EndCinematic();
+                    if (pendingWatchTip) ShowWatchTip();
+                }
                 ui.UpdatePlayback(playback.HeroHpFraction, playback.LastInfo);
                 ui.SetPlaybackStats(playback.StatsText);
             }
